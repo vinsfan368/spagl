@@ -46,11 +46,17 @@ def gamma_likelihood(jumps, diff_coefs=None, max_jumps_per_track=None,
         (
             2D ndarray of shape (n_tracks, n_bins), the likelihood of 
                 each diffusion coefficient bin for this trajectory;
+
             1D ndarray of shape (n_tracks,), the number of jumps per
                 trajectory;
+
+            1D ndarray of shape (n_tracks,), the trajectory indices 
+                in the original *tracks* dataframe corresponding to 
+                each split trajectory in the output likelihood;
+
             (
-                1D ndarray of shape (n_tracks,), the indices of each 
-                    trajectory in the original dataframe
+                1D ndarray of shape (n_diff_coefs,), the support
+                    in microns squared per second
             )
         )
 
@@ -60,6 +66,12 @@ def gamma_likelihood(jumps, diff_coefs=None, max_jumps_per_track=None,
         diff_coefs = DIFF_COEFS_DEFAULT
     else:
         diff_coefs = np.asarray(diff_coefs)
+
+    # If passed empty input, return empty output
+    if jumps.shape[0] == 0:
+        return np.zeros((0, diff_coefs.shape[0]), dtype=np.float64), \
+            np.zeros(0, dtype=np.int64), np.zeros(0, dtype=np.int64), \
+            (diff_coefs,)
 
     # Localization variance
     le2 = loc_error ** 2
@@ -126,7 +138,7 @@ def gamma_likelihood(jumps, diff_coefs=None, max_jumps_per_track=None,
     # Normalize
     L = (L.T / L.sum(axis=1)).T 
 
-    return L, np.asarray(S["n_jumps"]), np.asarray(S["trajectory"])
+    return L, np.asarray(S["n_jumps"]), np.asarray(S["trajectory"]), (diff_coefs,)
 
 def rbme_likelihood(jumps, diff_coefs=None, loc_errors=None, max_jumps_per_track=10,
     frame_interval=0.00748):
@@ -184,6 +196,11 @@ def rbme_likelihood(jumps, diff_coefs=None, loc_errors=None, max_jumps_per_track
     nD = diff_coefs.shape[0]
     nLE = loc_errors.shape[0]
 
+    # If passed empty input, return empty output
+    if jumps.shape[0] == 0:
+        return np.zeros((0, nD, nLE), dtype=np.float64), np.zeros(0, dtype=np.int64), \
+            np.zeros(0, dtype=np.int64), (diff_coefs, loc_errors)
+
     # Number of spatial dimensions in this data
     n_cols = jumps.shape[1]
     n_dim = n_cols - 4
@@ -207,7 +224,10 @@ def rbme_likelihood(jumps, diff_coefs=None, loc_errors=None, max_jumps_per_track
     track_indices = np.asarray(J.groupby("trajectory").apply(lambda j: j.name)).astype(np.int64)
 
     # The size of the largest covariance matrix to make
-    max_jumps_per_track = min(max_jumps_per_track, J["n_jumps"].max())
+    if (not max_jumps_per_track is None) or (max_jumps_per_track is np.inf):
+        max_jumps_per_track = min(max_jumps_per_track, J["n_jumps"].max())
+    else:
+        max_jumps_per_track = J["n_jumps"].max()
 
     # Generate the RBME jump covariance matrix
     def make_cov(D, loc_error, n):
@@ -277,7 +297,7 @@ def rbme_likelihood(jumps, diff_coefs=None, loc_errors=None, max_jumps_per_track
         L[t,:,:] /= L[t,:,:].sum()
     del log_L 
 
-    return L, n_jumps, track_indices, diff_coefs, loc_errors
+    return L, n_jumps, track_indices, (diff_coefs, loc_errors)
 
 def fbme_likelihood(jumps, diff_coefs=None, hurst_pars=None, max_jumps_per_track=10,
     frame_interval=0.00748, loc_error=0.035):
@@ -338,6 +358,12 @@ def fbme_likelihood(jumps, diff_coefs=None, hurst_pars=None, max_jumps_per_track
     nD = diff_coefs.shape[0]
     nH = hurst_pars.shape[0]
 
+    # If passed empty input, return empty output
+    if jumps.shape[0] == 0:
+        return np.zeros((0, nD, nH), dtype=np.float64), \
+            np.zeros(0, dtype=np.int64), np.zeros(0, dtype=np.int64), \
+            (diff_coefs, hurst_pars)
+
     # 1D localization variance
     le2 = loc_error ** 2
 
@@ -364,7 +390,10 @@ def fbme_likelihood(jumps, diff_coefs=None, hurst_pars=None, max_jumps_per_track
     track_indices = np.asarray(J.groupby("trajectory").apply(lambda j: j.name)).astype(np.int64)
 
     # The size of the largest covariance matrix to make
-    max_jumps_per_track = min(max_jumps_per_track, J["n_jumps"].max())
+    if (not max_jumps_per_track is None) and (not max_jumps_per_track is np.inf):
+        max_jumps_per_track = min(max_jumps_per_track, J["n_jumps"].max())
+    else:
+        max_jumps_per_track = J["n_jumps"].max()
 
     # Generate the RBME jump covariance matrix
     def make_cov(D, hurst, n):
@@ -440,4 +469,4 @@ def fbme_likelihood(jumps, diff_coefs=None, hurst_pars=None, max_jumps_per_track
         L[t,:,:] /= L[t,:,:].sum()
     del log_L 
 
-    return L, n_jumps, track_indices, diff_coefs, loc_errors
+    return L, n_jumps, track_indices, (diff_coefs, hurst_pars)

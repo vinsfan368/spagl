@@ -211,8 +211,7 @@ def f_remain_fbm(D, hurst, n_frames, frame_interval, dz, D_type=4):
 def defoc_corr_rbm(L, diff_coefs, frame_interval=0.00748, dz=0.7):
     """
     Apply a defocalization correction to the regular Brownian motion
-    likelihood function. Since localization error is not assumed to 
-    figure into the likelihood, this works for both RBMs and RBMEs.
+    likelihood function.
 
     args
     ----
@@ -232,8 +231,6 @@ def defoc_corr_rbm(L, diff_coefs, frame_interval=0.00748, dz=0.7):
     """
     diff_coefs = np.asarray(diff_coefs)
     K = diff_coefs.shape[0]
-    assert L.shape[1] == K, "second axis of likelihood matrix must " \
-        "correspond to the diffusion coefficient"
 
     # For each diffusion coefficient, evaluate the defocalization
     # probability at one frame interval
@@ -241,14 +238,88 @@ def defoc_corr_rbm(L, diff_coefs, frame_interval=0.00748, dz=0.7):
     for i, D in enumerate(diff_coefs):
         frac_remain[i] = f_remain_rbm(D, 1, frame_interval, dz)[0]
 
-    # Apply the correction and renormalize
-    if len(L.shape == 2):
-        L /= frac_remain 
-        L = (L.T / L.sum(axis=1)).T 
+    # Passed a single aggregate likelihood function
+    if len(L.shape) == 1:
+        assert L.shape[0] == K, "first axis of aggregate likelihood must " \
+            "correspond to the diffusion coefficient"
 
-    elif len(L.shape == 3):
+        # Apply the correction and renormalize
+        L /= frac_remain 
+        norm = L.sum()
+        if norm > 0:
+            L /= norm 
+
+    else:
+        assert L.shape[1] == K, "second axis of likelihood matrix must " \
+            "correspond to the diffusion coefficient"
+
+        # Apply the correction and renormalize
+        if len(L.shape) == 2:
+            L /= frac_remain 
+            L = (L.T / L.sum(axis=1)).T 
+
+        elif len(L.shape) == 3:
+            for j in range(L.shape[2]):
+                L[:,:,j] = L[:,:,j] / frac_remain
+            for t in range(L.shape[0]):
+                L[t,:,:] /= L[t,:,:].sum()
+
+    return L 
+
+def defoc_corr_rbme(L, diff_coefs, loc_errors, frame_interval=0.00748, dz=0.7):
+    """
+    Apply a defocalization correction to the regular Brownian motion with
+    error (RBME) likelihood function. Localization error is not assumed
+    to figure into defocalization, so the *loc_errors* argument is ignored.
+
+    args
+    ----
+        L               :   ndarray, the likelihood function as generated
+                            by *eval_likelihood*
+        diff_coefs      :   1D ndarray, the set of diffusion coefficients
+                            corresponding to *L*. The second axis of *L*
+                            is assumed to corresponding to the values of 
+                            *diff_coefs*.
+        loc_errors      :   1D ndarray, localization error parameters
+        frame_interval  :   float, frame interval in seconds
+        dz              :   float, focal depth in microns
+
+    returns
+    -------
+        reference to *L* after correction
+
+    """
+    diff_coefs = np.asarray(diff_coefs)
+    K = diff_coefs.shape[0]
+
+    # For each diffusion coefficient, evaluate the defocalization
+    # probability at one frame interval
+    frac_remain = np.zeros(K, dtype=np.float64)
+    for i, D in enumerate(diff_coefs):
+        frac_remain[i] = f_remain_rbm(D, 1, frame_interval, dz)[0]
+
+    # Passed a single aggregate likelihood function
+    if len(L.shape) == 2:
+        assert L.shape[0] == K, "first axis of aggregate likelihood must " \
+            "correspond to the diffusion coefficient"
+
+        # Apply the correction and renormalize
+        L = (L.T / frac_remain).T
+        norm = L.sum()
+        if norm > 0:
+            L /= norm
+
+    elif len(L.shape) == 3:
+        assert L.shape[1] == K, "second axis of likelihood matrix must " \
+            "correspond to the diffusion coefficient"
+
+        # Apply the correction
+        corr = np.empty((L.shape[1], L.shape[2]), dtype=np.float64)
         for j in range(L.shape[2]):
-            L[:,:,j] = L[:,:,j] / frac_remain
+            corr[:,j] = frac_remain 
+        L = L / corr 
+
+        # Renormalize over states for each trajectory
         for t in range(L.shape[0]):
             L[t,:,:] /= L[t,:,:].sum()
 
@@ -292,14 +363,28 @@ def defoc_corr_fbm(L, diff_coefs, hurst_pars, frame_interval=0.00748, dz=0.7):
     frac_remain = np.ones((nD, nH), dtype=np.float64)
     for i, D in enumerate(diff_coefs):
         for j, H in enumerate(hurst_pars):
-            frac_remain[i,j] = f_remain_fbm()
+            frac_remain[i,j] = f_remain_fbm(D, H, 1, frame_interval, dz)
 
-    # Apply the correction 
-    L /= frac_remain 
+    # Aggregate likelihood
+    if len(L.shape) == 2:
 
-    # Renormalize over all parameter sets for each trajectory
-    for t in range(L.shape[0]):
-        L[t,:,:] /= L[t,:,:].sum()
+        # Apply the correction
+        L /= frac_remain 
+
+        # Renormalize
+        norm = L.sum()
+        if norm > 0:
+            L /= norm
+
+    # Trajectory-wise
+    elif len(L.shape) == 3:
+
+        # Apply the correction 
+        L /= frac_remain 
+
+        # Renormalize over all parameter sets for each trajectory
+        for t in range(L.shape[0]):
+            L[t,:,:] /= L[t,:,:].sum()
 
     return L 
 
@@ -307,7 +392,7 @@ def defoc_corr_fbm(L, diff_coefs, hurst_pars, frame_interval=0.00748, dz=0.7):
 # The available likelihood corrections
 LIKELIHOOD_CORR_FUNCS = {
     "gamma": defoc_corr_rbm,
-    "rbme": defoc_corr_rbm
+    "rbme": defoc_corr_rbme,
     "fbme": defoc_corr_fbm
 }
 

@@ -340,7 +340,7 @@ def sum_squared_jumps(jumps, max_jumps_per_track=None, pos_cols=["y", "x"]):
 
     return sum_jumps
 
-def split_jumps(jumps, splitsize=4):
+def split_jumps(jumps, splitsize=8):
     """
     Split a set of long trajectories into shorter trajectories.
 
@@ -373,6 +373,10 @@ def split_jumps(jumps, splitsize=4):
             no relation to the original trajectory indices.
 
     """
+    # If passed empty input, return empty output
+    if jumps.shape[0] == 0:
+        return np.zeros(0, dtype=np.int64)
+        
     # The original set of trajectory indices
     orig_indices = jumps[:,1].astype(np.int64)
 

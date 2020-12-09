@@ -17,7 +17,7 @@ from .utils import split_jumps
 from .lik import (
     gamma_likelihood,
     rbme_likelihood,
-    fbm_likelihood
+    fbme_likelihood
 )
 
 # Available raw likelihood functions
@@ -33,17 +33,40 @@ from .utils import tracks_to_jumps
 # Correct for defocalization
 from .defoc import defoc_corr
 
-def eval_likelihood(tracks, likelihood="gamma", splitsize=4,
+def eval_likelihood(tracks, likelihood="gamma", splitsize=None,
     max_jumps_per_track=None, start_frame=None, pixel_size_um=0.16,
     frame_interval=0.00748, scale_by_jumps=True, dz=None, **kwargs):
     """
+    Evaluate a likelihood function on some trajectories, returning
+    the results in a matrix indexed to each trajectory and each 
+    likelihood parameter.
+
+    note on splitsize's effect on track indices
+    -------------------------------------------
+
+        Each trajectory has a unique index in the original *tracks*
+        dataframe. If *splitsize* is set, then these trajectories 
+        are broken apart into smaller trajectories, which are all
+        assigned new indices.
+
+        As a result, the number of trajectories in the output does 
+        not necessarily equal the number of unique trajectories in
+        the input dataframe.
+
+        The map between old and new trajectory indices is recorded
+        in the *orig_track_indices* output of this function. If 
+        *i* is the index of one of the split trajectories, then 
+        orig_track_indices[i] is the index of the source trajectory
+        in the origin *tracks* dataframe.
+
     args
     ----
         tracks              :   pandas.DataFrame
         likelihood          :   str, "gamma", "rbme", or "fbm"
         splitsize           :   int, the length of the subsampled
                                 trajectories in number of jumps
-        max_jumps_per_track :   int, 
+        max_jumps_per_track :   int, do not consider more than this
+                                many jumps per trajectory
         frame_interval      :   float, frame interval in seconds
         scale_by_jumps      :   bool, scale the likelihoods for 
                                 each trajectory by the number of 
@@ -54,13 +77,19 @@ def eval_likelihood(tracks, likelihood="gamma", splitsize=4,
     returns
     -------
         (
-            ndarray, the likelihood function for each trajectory;
-            1D ndarray, the number of jumps in each trajectory;
-            1D ndarray, the (potentially split) indices of each
-                trajectory;
-            1D ndarray, the original indices of each trajectory;
+            ndarray, the likelihood function. This always has the 
+                shape (n_tracks, ...), with the second axes onward
+                corresponding to different likelihood parameters;
+
+            1D ndarray of shape (n_tracks,), the number of jumps in
+                each trajectory;
+
+            1D ndarray of shape (n_tracks,), the indices of each
+                new trajectory in the origin dataframe;
+
             tuple of 1D ndarray, the parameters corresponding to 
                 axes 1 onward for the likelihood
+
         )
 
     """
@@ -87,4 +116,4 @@ def eval_likelihood(tracks, likelihood="gamma", splitsize=4,
     if scale_by_jumps:
         L = (L.T * n_jumps).T 
 
-    return L, n_jumps, track_indices, orig_track_indices, support
+    return L, n_jumps, orig_track_indices, support

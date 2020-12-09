@@ -209,6 +209,9 @@ def load_tracks_dir(dirname, suffix=".csv", start_frame=0,
 def tracks_to_jumps(tracks, n_frames=1, start_frame=None, pixel_size_um=0.16,
     pos_cols=["y", "x"]):
     """
+    Convert trajectories in pandas.DataFrame format to an internal "jumps"
+    format, specified in the *returns* section of this docstring.
+
     args
     ----
         tracks          :   pandas.DataFrame

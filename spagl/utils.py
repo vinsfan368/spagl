@@ -3,6 +3,9 @@
 utils.py
 
 """
+# Warnings
+import warnings
+
 # Paths 
 import os
 from glob import glob 
@@ -65,11 +68,15 @@ def assign_index_in_track(tracks):
 #############################
 
 def load_tracks(*csv_paths, out_csv=None, start_frame=0,
-    drop_singlets=False):
+    drop_singlets=False, suffix=".csv"):
     """
     Given a set of trajectories stored as CSVs, concatenate all
     of them, storing the paths to the original CSVs in the resulting
     dataframe, and optionally save the result to another CSV.
+
+    If passed a directory instead of a set of CSV paths, find all 
+    the CSVs in that directory that end with *suffix*, load the 
+    trajectories, and concatenate them.
 
     args
     ----
@@ -81,6 +88,7 @@ def load_tracks(*csv_paths, out_csv=None, start_frame=0,
                             this frame
         drop_singlets   :   bool, drop singlet localizations before
                             concatenating
+        suffix          ;   str, suffix of CSVs if passing a directory
 
     returns
     -------
@@ -88,6 +96,15 @@ def load_tracks(*csv_paths, out_csv=None, start_frame=0,
 
     """
     n = len(csv_paths)
+    if n == 0:
+        warnings.warn("no paths passed")
+        return pd.DataFrame([], columns=["trajectory", "frame", "y", "x"])
+
+    # If passed a directory instead of a set of file paths, just load all 
+    # the CSVs from that directory
+    if os.path.isdir(csv_paths[0]):
+        return load_tracks_dir(csv_paths[0], start_frame=start_frame,
+            drop_singlets=drop_singlets, suffix=suffix)
 
     def drop_before_start_frame(tracks, start_frame):
         """
@@ -376,7 +393,7 @@ def split_jumps(jumps, splitsize=8):
     # If passed empty input, return empty output
     if jumps.shape[0] == 0:
         return np.zeros(0, dtype=np.int64)
-        
+
     # The original set of trajectory indices
     orig_indices = jumps[:,1].astype(np.int64)
 

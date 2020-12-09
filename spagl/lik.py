@@ -118,7 +118,7 @@ def gamma_likelihood(jumps, diff_coefs=None, max_jumps_per_track=None,
         doublets = np.asarray(S["n_jumps"] == 1)
         sum_r2_doublets = np.asarray(S.loc[doublets, "sum_sq_jump"])
         sum_r2_nondoublets = np.asarray(S.loc[~doublets, "sum_sq_jump"])
-        alpha_doublets = np.asarray(S.loc[doublets, "n_jumps"] * n_dim / 2.0)
+        alpha_nondoublets = np.asarray(S.loc[~doublets, "n_jumps"] * n_dim / 2.0)
 
         for j in range(K):
 

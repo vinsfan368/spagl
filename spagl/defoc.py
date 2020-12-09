@@ -208,7 +208,7 @@ def f_remain_fbm(D, hurst, n_frames, frame_interval, dz, D_type=4):
 ## LIKELIHOOD-SPECIFIC CORRECTION FUNCTIONS ##
 ##############################################
 
-def defoc_corr_rbm(L, diff_coefs, frame_interval=0.00748, dz=0.7):
+def defoc_corr_rbm(L, diff_coefs, mode="point", frame_interval=0.00748, dz=0.7):
     """
     Apply a defocalization correction to the regular Brownian motion
     likelihood function.
@@ -221,6 +221,8 @@ def defoc_corr_rbm(L, diff_coefs, frame_interval=0.00748, dz=0.7):
                             corresponding to *L*. The second axis of *L*
                             is assumed to corresponding to the values of 
                             *diff_coefs*.
+        mode            :   str, the mode the likelihood was calculated in,
+                            either "point" or "binned"
         frame_interval  :   float, frame interval in seconds
         dz              :   float, focal depth in microns
 
@@ -230,13 +232,24 @@ def defoc_corr_rbm(L, diff_coefs, frame_interval=0.00748, dz=0.7):
 
     """
     diff_coefs = np.asarray(diff_coefs)
-    K = diff_coefs.shape[0]
+    if mode == "point":
+        K = diff_coefs.shape[0]
 
-    # For each diffusion coefficient, evaluate the defocalization
-    # probability at one frame interval
-    frac_remain = np.zeros(K, dtype=np.float64)
-    for i, D in enumerate(diff_coefs):
-        frac_remain[i] = f_remain_rbm(D, 1, frame_interval, dz)[0]
+        # For each diffusion coefficient, evaluate the defocalization
+        # probability at one frame interval
+        frac_remain = np.zeros(K, dtype=np.float64)
+        for i, D in enumerate(diff_coefs):
+            frac_remain[i] = f_remain_rbm(D, 1, frame_interval, dz)[0]       
+
+    elif mode == "binned":
+        K = diff_coefs.shape[0] - 1
+        d_mid = np.sqrt(diff_coefs[1:] * diff_coefs[:-1])
+
+        # For each diffusion coefficient, evaluate the defocalization
+        # probability at one frame interval
+        frac_remain = np.zeros(K, dtype=np.float64)
+        for i, D in enumerate(d_mid):
+            frac_remain[i] = f_remain_rbm(D, 1, frame_interval, dz)[0]
 
     # Passed a single aggregate likelihood function
     if len(L.shape) == 1:
@@ -396,7 +409,7 @@ LIKELIHOOD_CORR_FUNCS = {
     "fbme": defoc_corr_fbm
 }
 
-def defoc_corr(L, support, likelihood="gamma", frame_interval=0.00748, dz=0.7):
+def defoc_corr(L, support, likelihood="gamma", frame_interval=0.00748, dz=0.7, **kwargs):
     """
     Apply a defocalization correction to a likelihood function.
 
@@ -409,6 +422,8 @@ def defoc_corr(L, support, likelihood="gamma", frame_interval=0.00748, dz=0.7):
         likelihood  :   str, the type of likelihood function
         frame_interval: float, frame interval in seconds
         dz          :   float, focal depth in microns
+        kwargs      :   additional kwargs to the defocalization function
+                        specific to this likelihood
 
     returns
     -------
@@ -421,4 +436,4 @@ def defoc_corr(L, support, likelihood="gamma", frame_interval=0.00748, dz=0.7):
 
     # Apply the correction
     return LIKELIHOOD_CORR_FUNCS[likelihood](L, *support, dz=dz,
-        frame_interval=frame_interval)
+        frame_interval=frame_interval, **kwargs)

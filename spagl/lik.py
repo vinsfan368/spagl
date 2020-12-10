@@ -20,7 +20,7 @@ LOC_ERRORS_DEFAULT = np.arange(0.0, 0.102, 0.002)
 HURST_PARS_DEFAULT = np.arange(0.05, 1.0, 0.05)
 
 def gamma_likelihood(jumps, diff_coefs=None, max_jumps_per_track=None,
-    n_dim=2, frame_interval=0.00748, loc_error=0.035, mode="point"):
+    n_gaps=0, n_dim=2, frame_interval=0.00748, loc_error=0.035, mode="point"):
     """
     Gamma approximation to the likelihood of a regular Brownian motion
     with localization error.
@@ -29,15 +29,24 @@ def gamma_likelihood(jumps, diff_coefs=None, max_jumps_per_track=None,
     ----
         jumps                   :   2D ndarray, trajectories in jumps format
                                     as returned by *tracks_to_jumps*
+
         diff_coefs              :   1D ndarray, the diffusion coefficient
                                     values at which to evaluate the likelihood
                                     function. If *None*, this is the default
                                     scheme.
+
         max_jumps_per_track     :   int, the maximum number of jumps to 
                                     include per trajectory
+
+        n_gaps                  :   int, the number of gap frames tolerated
+                                    during tracking
+
         n_dim                   :   int, the number of spatial dimensions
+
         frame_interval          :   float, seconds
+
         loc_error               :   float, root 1D localization variance in microns
+
         mode                    :   str, "point" or "binned", the likelihood
                                     approximation to use
 
@@ -88,25 +97,67 @@ def gamma_likelihood(jumps, diff_coefs=None, max_jumps_per_track=None,
         # Number of points at which to evaluate the likelihood
         K = diff_coefs.shape[0]
 
-        # Alpha parameter governing the gamma likelihood
-        alpha = np.asarray(S["n_jumps"] * n_dim / 2.0)
-
-        # Sum of squared jumps in each trajectory
-        sum_r2 = np.asarray(S["sum_sq_jump"])
-
         # Log likelihoods for each diffusion coefficient, given each trajectory
         L = np.zeros((n_tracks, K), dtype=np.float64)
 
-        for j in range(K):
-            phi = 4 * (diff_coefs[j] * frame_interval + le2)
-            L[:,j] = -(sum_r2 / phi) - alpha * np.log(phi)
+        # Total number of jumps observed for this trajectory (only 
+        # letting jumps over gaps get weight 1)
+        tot_n_jumps = np.zeros(n_tracks, dtype=np.int64)
+
+        # Calculate jump likelihoods for each gap separately
+        for g in range(n_gaps+1):
+
+            jumps_col = "n_jumps_{}_gaps".format(g)
+            sum_sq_col = "sum_sq_jump_{}_gaps".format(g)
+
+            # Get the set of trajectories that have observed jumps with
+            # this number of gap frames
+            take = ~np.asarray(pd.isnull(S[jumps_col]))
+
+            # Alpha parameter governing the gamma likelihood
+            alpha = np.asarray(S[jumps_col] * n_dim / 2.0)
+
+            # Sum of squared jumps in each trajectory
+            sum_r2 = np.asarray(S[sum_sq_col])
+
+            # Add these jumps' contributions to the log likelihood
+            for j in range(K):
+                phi = 4 * (diff_coefs[j] * frame_interval * (g+1) + le2)
+                L[take,j] += (
+                    -(sum_r2[take] / phi) - alpha[take] * np.log(phi)
+                )
+
+            # Add these jumps' contributions to the total number of jumps
+            # for this trajectory
+            tot_n_jumps[take] = tot_n_jumps[take] + np.asarray(S.loc[take, jumps_col]).astype(np.int64)
 
         # Stable conversion to likelihood
         L = (L.T - L.max(axis=1)).T 
         L = np.exp(L)
 
+        # # Number of points at which to evaluate the likelihood
+        # K = diff_coefs.shape[0]
+
+        # # Alpha parameter governing the gamma likelihood
+        # alpha = np.asarray(S["n_jumps"] * n_dim / 2.0)
+
+        # # Sum of squared jumps in each trajectory
+        # sum_r2 = np.asarray(S["sum_sq_jump"])
+
+        # # Log likelihoods for each diffusion coefficient, given each trajectory
+        # L = np.zeros((n_tracks, K), dtype=np.float64)
+
+        # for j in range(K):
+        #     phi = 4 * (diff_coefs[j] * frame_interval + le2)
+        #     L[:,j] = -(sum_r2 / phi) - alpha * np.log(phi)
+
+        # # Stable conversion to likelihood
+        # L = (L.T - L.max(axis=1)).T 
+        # L = np.exp(L)
+
     # Integrated gamma likelihood
     elif mode == "binned":
+        raise NotImplementedError
 
         # Number of likelihood bins to use
         K = diff_coefs.shape[0] - 1
@@ -138,7 +189,7 @@ def gamma_likelihood(jumps, diff_coefs=None, max_jumps_per_track=None,
     # Normalize
     L = (L.T / L.sum(axis=1)).T 
 
-    return L, np.asarray(S["n_jumps"]), np.asarray(S["trajectory"]), (diff_coefs,)
+    return L, tot_n_jumps, np.asarray(S["trajectory"]), (diff_coefs,)
 
 def rbme_likelihood(jumps, diff_coefs=None, loc_errors=None, max_jumps_per_track=10,
     frame_interval=0.00748):

@@ -33,9 +33,10 @@ from .utils import tracks_to_jumps
 # Correct for defocalization
 from .defoc import defoc_corr
 
-def eval_likelihood(tracks, likelihood="gamma", splitsize=None,
+def eval_likelihood(tracks, likelihood="gamma", splitsize=None, n_gaps=0,
     max_jumps_per_track=None, start_frame=None, pixel_size_um=0.16,
-    frame_interval=0.00748, scale_by_jumps=True, dz=None, **kwargs):
+    frame_interval=0.00748, scale_by_jumps=True, dz=None, pos_cols=["y", "x"],
+    **kwargs):
     """
     Evaluate a likelihood function on some trajectories, returning
     the results in a matrix indexed to each trajectory and each 
@@ -62,16 +63,30 @@ def eval_likelihood(tracks, likelihood="gamma", splitsize=None,
     args
     ----
         tracks              :   pandas.DataFrame
+
         likelihood          :   str, "gamma", "rbme", or "fbm"
+
         splitsize           :   int, the length of the subsampled
                                 trajectories in number of jumps
+
+        n_gaps              :   int, the number of gaps tolerated 
+                                during tracking. Note that only "gamma"
+                                likelihoods support gaps. 
+
         max_jumps_per_track :   int, do not consider more than this
                                 many jumps per trajectory
+
         frame_interval      :   float, frame interval in seconds
+
         scale_by_jumps      :   bool, scale the likelihoods for 
                                 each trajectory by the number of 
                                 jumps in that trajectory
+
         dz                  :   focal depth in microns
+
+        pos_cols            :   list of str, the columns in *tracks*
+                                with spatial coordinates in pixels
+
         kwargs              :   to the likelihood function
 
     returns
@@ -93,9 +108,14 @@ def eval_likelihood(tracks, likelihood="gamma", splitsize=None,
         )
 
     """
+    # Cannot use gaps if using RBME or FBME likelihood
+    if (n_gaps > 0) and (likelihood in ["rbme", "fbme"]):
+        raise RuntimeError("Cannot currently use gapped tracking with " \
+            "rbme or fbme likelihoods")
+
     # Calculate all the vector jumps in this set of trajectories
-    jumps = tracks_to_jumps(tracks, n_frames=1, start_frame=start_frame, 
-        pixel_size_um=pixel_size_um)
+    jumps = tracks_to_jumps(tracks, start_frame=start_frame, pos_cols=pos_cols,
+        pixel_size_um=pixel_size_um, n_gaps=n_gaps)
 
     # If desired, split the trajectories into smaller trajectories
     orig_track_indices = jumps[:,1].astype(np.int64)

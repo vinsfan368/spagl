@@ -158,6 +158,75 @@ def f_remain_rbm(D, n_frames, frame_interval, dz):
 
     return result 
 
+def f_remain_rbm_gapped(D, n_frames, frame_interval, n_gaps=0):
+    """
+    Calculate the fraction of regular Brownian trajectories that
+    remain in a microscope's depth of field after some number of 
+    frames. 
+
+    args
+    ----
+        D               :   float, diffusion coefficient in squared
+                            microns per second
+        n_frames        :   int, the number of frames
+        frame_interval  :   float, seconds
+        dz              :   float, focal depth in microns
+        n_gaps          :   int, the number of gaps tolerated 
+                            during tracking
+
+    returns
+    -------
+        1D ndarray of shape (n_frames,), the probability to 
+            remain at each frame interval
+
+    """
+    if dz is np.inf:
+        return np.ones(n_frames, dtype=np.float64)
+
+    # z-axis support
+    s = (int(dz//2.0)+1) * 2
+    support = np.linspace(-s, s, int(((2*s)//0.001)+2))[:-1]
+    n = support.shape[0]
+    hz = 0.5 * dz 
+    inside = np.abs(support) <= hz 
+    outside = ~inside 
+
+    # Buffer for probability mass
+    pmf = np.zeros((n_gaps+1, n), dtype=np.float64)
+
+    # Initially all probability mass starts out uniformly distributed 
+    # in the focal volume
+    pmf[0,:] = inside.astype(np.float64)
+    pmf[0,:] = pmf[0,:] / pmf[0,:].sum()
+
+    # A buffer for the probability density that lands inside the focal 
+    # volume at each frame
+    spillover = np.zeros(n, dtype=np.float64)
+
+    # Define the transfer function for this BM
+    g_rft = generate_brownian_transfer_function(support, D, frame_interval)
+
+    # The frame gaps to consider, in order of evaluation
+    gaps = list(range(n_gaps+1))[::-1]
+
+    # Fraction of molecules remaining at each frame
+    result = np.zeros(n_frames, dtype=np.float64)
+
+    # Propagate
+    for t in range(n_frames):
+
+        for g in gaps:
+            prop = np.fft.fftshift(np.fft.irfft(np.fft.rfft(pmf[g,:]) * g_rft, n=n))
+            spillover[inside] += prop[inside]
+            prop[inside] = 0
+            if g < n_gaps:
+                pmf[g+1,:] = prop
+
+        pmf[0,:] = spillover
+        result[t] = spillover.sum()
+        spillover[:] = 0
+    return result 
+
 def f_remain_fbm(D, hurst, n_frames, frame_interval, dz, D_type=4):
     """
     Calculate the fraction of fractional Brownian particles that 

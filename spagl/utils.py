@@ -206,8 +206,8 @@ def load_tracks_dir(dirname, suffix=".csv", start_frame=0,
 ## JUMP COMPUTERS ##
 ####################
 
-def tracks_to_jumps(tracks, n_frames=1, start_frame=None, pixel_size_um=0.16,
-    pos_cols=["y", "x"]):
+def tracks_to_jumps(tracks, start_frame=None, pixel_size_um=0.16,
+    pos_cols=["y", "x"], n_gaps=0):
     """
     Convert trajectories in pandas.DataFrame format to an internal "jumps"
     format, specified in the *returns* section of this docstring.
@@ -222,6 +222,102 @@ def tracks_to_jumps(tracks, n_frames=1, start_frame=None, pixel_size_um=0.16,
         pixel_size_um   :   float, size of pixels in microns
         pos_cols        :   list of str, the columns with the spatial 
                             coordinates of each point in pixels
+        n_gaps          :   int, the number of gaps allowed during tracking.
+                            0 means no gaps allowed, and only jumps between
+                            frame n and n+1 are allowed.
+
+    returns
+    -------
+        2D ndarray, each row corresponding to a jump. The columns have 
+        the following meaning:
+
+            jumps[:,0] -> length in frames of the origin trajectory
+            jumps[:,1] -> index of the origin trajectory
+            jumps[:,2] -> frame index of the first point in the jump
+            jumps[:,3] -> number of frames over which the jump occurs
+                          (if n_gaps = 0, this is always 1)
+            jumps[:,4] -> squared radial jumps in squared microns
+            jumps[:,5] -> radial jump in microns
+            jumps[:,6:] -> Euclidean jumps along each dimension
+
+    """
+    def bail():
+        return np.zeros((0, 6), dtype=np.float64)
+
+    # If passed an empty dataframe, bail
+    if tracks.empty: return bail()
+
+    # Do not modify the original dataframe
+    tracks = tracks.copy()
+
+    # Calculate the original trajectory length and exclude
+    # singlets and negative trajectory indices
+    tracks = track_length(tracks)
+    tracks = tracks[np.logical_and(
+        tracks["trajectory"] >= 0,
+        tracks["track_length"] > 1
+    )]
+
+    # Only consider trajectories after some start frame
+    if not start_frame is None:
+        tracks = tracks[tracks["frame"] >= start_frame]
+
+    # If no trajectories remain, bail
+    if tracks.empty: return bail()
+
+    # Convert from pixels to um
+    tracks[pos_cols] *= pixel_size_um 
+
+    # Work with an ndarray, for speed
+    tracks = tracks.sort_values(by=["trajectory", "frame"])
+    T = np.asarray(tracks[["track_length", "trajectory", "frame", "frame", pos_cols[0], pos_cols[0]] + pos_cols])
+
+    # Compute all jumps, which (if tolerating gaps) could potentially be 
+    # over multiple frames
+    jumps = T[1:,:] - T[:-1,:]
+
+    # Only consider vectors between points originating from the same trajectory
+    same_track = jumps[:,1] == 0
+
+    # Only consider vectors between points that are temporally separated by 
+    # less than the maximum tolerated number of gaps
+    within_gap_limit = np.logical_and(
+        jumps[:,3] >= 1,
+        jumps[:,3] <= (n_gaps+1)
+    )
+
+    # Map the corresponding track lengths, track indices, and frame indices
+    # back to each jump
+    jumps[:,:3] = T[:-1,:3]
+    jumps = jumps[np.logical_and(same_track, within_gap_limit), :]
+
+    # Calculate the 2D squared jumps
+    jumps[:,4] = (jumps[:,5:]**2).sum(axis=1)
+
+    # Calculate the radial jump
+    jumps[:,5] = np.sqrt(jumps[:,4])
+
+    return jumps
+
+def tracks_to_jumps_old(tracks, n_frames=1, start_frame=None, pixel_size_um=0.16,
+    pos_cols=["y", "x"], n_gaps=0):
+    """
+    Convert trajectories in pandas.DataFrame format to an internal "jumps"
+    format, specified in the *returns* section of this docstring.
+
+    args
+    ----
+        tracks          :   pandas.DataFrame
+        n_frames        :   int, the number of frames over which to compute
+                            the jump. For instance, if n_frames = 1, then only
+                            compute jumps between consecutive frames
+        start_frame     :   int, disregard jumps before this frame
+        pixel_size_um   :   float, size of pixels in microns
+        pos_cols        :   list of str, the columns with the spatial 
+                            coordinates of each point in pixels
+        n_gaps          :   int, the number of gaps allowed during tracking.
+                            0 means no gaps allowed, and only jumps between
+                            frame n and n+1 are allowed.
 
     returns
     -------
@@ -238,6 +334,19 @@ def tracks_to_jumps(tracks, n_frames=1, start_frame=None, pixel_size_um=0.16,
                             dimensions in squared microns
             jumps[:,4] -> radial jump in microns
             jumps[:,5:] -> jumps in each Euclidean dimension in microns
+
+        NEW FORMAT:
+            jumps[:,0] -> length of the origin trajectory in frames
+            jumps[:,1] -> index of the origin trajectory in *tracks*
+            jumps[:,2] -> frame corresponding to the first point in 
+                            the jump
+            jumps[:,3] -> number of frames over which the jump was
+                            computed. Always 1 if tracking without gaps.
+            jumps[:,4] -> sum of squared jumps across all spatial
+                            dimensions in squared microns
+            jumps[:,5] -> radial jump in microns
+            jumps[:,6:] -> jumps in each Euclidean dimension in microns
+
 
     """
     def bail():
@@ -302,10 +411,13 @@ def tracks_to_jumps(tracks, n_frames=1, start_frame=None, pixel_size_um=0.16,
     else:
         return bail()
 
-def sum_squared_jumps(jumps, max_jumps_per_track=None, pos_cols=["y", "x"]):
+def sum_squared_jumps(jumps, n_gaps=0, max_jumps_per_track=None, pos_cols=["y", "x"]):
     """
     For each trajectory in a dataset, calculate the sum of its squared
     jumps across all spatial dimensions.
+
+    This is done for each possible set of gap frames, for a total of 
+    *n_gaps+1* dataframes.
 
     args
     ----
@@ -316,7 +428,10 @@ def sum_squared_jumps(jumps, max_jumps_per_track=None, pos_cols=["y", "x"]):
 
     returns
     -------
-        pandas.DataFrame. Each row corresponds to a trajectory, with
+        list of pandas.DataFrame. Each DataFrame corresponds to a 
+        jump with some number of gap frames - 0 onward to *n_gaps*.
+
+        For each dataframe, each row corresponds to a trajectory, with
             the following columns:
 
             "sum_sq_jump": the summed squared jumps of that trajectory
@@ -331,10 +446,10 @@ def sum_squared_jumps(jumps, max_jumps_per_track=None, pos_cols=["y", "x"]):
 
     # If there are no jumps in this set of trajectories, bail
     if jumps.shape[0] == 0:
-        return pd.DataFrame(index=[], columns=out_cols)
+        return [pd.DataFrame(index=[], columns=out_cols)]
 
     # Format as a dataframe, indexed by jump
-    cols = ["track_length", "trajectory", "frame", "sq_jump"] + list(pos_cols)
+    cols = ["track_length", "trajectory", "frame", "jump_frames", "sq_jump", "rad_jump"] + list(pos_cols)
     jumps = pd.DataFrame(jumps, columns=cols)
     n_tracks = jumps["trajectory"].nunique()
 
@@ -343,20 +458,34 @@ def sum_squared_jumps(jumps, max_jumps_per_track=None, pos_cols=["y", "x"]):
         jumps = assign_index_in_track(jumps)
         tracks = jumps[jumps["index_in_track"] <= max_jumps_per_track]
 
-    # Output dataframe, indexed by trajectory
+    # The output DataFrame. This is indexed by trajectory, with columns corresponding
+    # to the number of jumps and the sum of squared jumps for each gap category.
+    out_cols = ["trajectory", "frame"]
+    for g in range(n_gaps+1):
+        out_cols += ["sum_sq_jump_{}_gaps".format(g), "n_jumps_{}_gaps".format(g)]
     sum_jumps = pd.DataFrame(index=np.arange(n_tracks), columns=out_cols)
 
-    # Calculate the sum of squared jumps for each trajectory
-    sum_jumps["sum_sq_jump"] = np.asarray(jumps.groupby("trajectory")["sq_jump"].sum())
-
-    # Calculate the number of jumps in each trajectory
-    sum_jumps["n_jumps"] = np.asarray(jumps.groupby("trajectory").size())
-
-    # Map back the indices of the origin trajectories
+    # Map back the trajectory indices
     sum_jumps["trajectory"] = np.asarray(jumps.groupby("trajectory").apply(lambda i: i.name))
 
-    # Map back the frame indices
+    # Map back the frame index of the first jump in each trajectory
     sum_jumps["frame"] = np.asarray(jumps.groupby("trajectory")["frame"].first())
+
+    # For each number of gap frames, find the sum of jumps for each trajectory
+    for g in range(n_gaps+1):
+
+        # Only take the subset of jumps that match this number of gap frames
+        subjumps = jumps.loc[jumps["jump_frames"] == (g+1)]
+
+        # Get the sum of squared jumps for each trajectory
+        sum_sq_jumps = subjumps.groupby("trajectory")["sq_jump"].sum()
+
+        # Get the number of jumps for each trajectory
+        n_jumps = subjumps.groupby("trajectory").size()
+
+        # Map these back the output DataFrame
+        sum_jumps["sum_sq_jump_{}_gaps".format(g)] = sum_jumps["trajectory"].map(sum_sq_jumps)
+        sum_jumps["n_jumps_{}_gaps".format(g)] = sum_jumps["trajectory"].map(n_jumps)
 
     return sum_jumps
 

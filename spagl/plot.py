@@ -25,6 +25,10 @@ import matplotlib
 matplotlib.rcParams['font.family'] = 'sans-serif'
 matplotlib.rcParams['font.sans-serif'] = 'Arial'
 
+# Place non-imshow axes directly above imshow axes in the presence
+# of colorbars
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+
 # Evaluate likelihood functions on trajectories
 from .eval_lik import eval_likelihood
 
@@ -37,6 +41,9 @@ from .lik import (
 
 # Defocalization terms
 from .defoc import defoc_corr 
+
+# Load trajectories from a directory or files
+from .utils import load_tracks
 
 ########################
 ## PLOTTING UTILITIES ##
@@ -587,6 +594,153 @@ def fbme_likelihood_plot(tracks, diff_coefs=None, hurst_pars=None, loc_error=0.0
 #################################
 ## CROSS-FILE LIKELIHOOD PLOTS ##
 #################################
+
+def gamma_likelihood_by_frame(*track_csvs, diff_coefs=None, frame_interval=0.00748,
+    pixel_size_um=0.16, loc_error=0.04, start_frame=0, interval=100,
+    dz=None, splitsize=12, max_jumps_per_track=None, vmax=None, vmax_perc=99,
+    log_y_axis=True, out_png=None, out_csv=None, normalize_by_frame_group=True):
+    """
+    Plot the gamma aggregated likelihood as a function of the frame in which 
+    each trajectory was found.
+
+    The trajectories are divided into groups. Each group comprises trajectories
+    that were found in a specific frame range (for examples, frames 100 to 199). 
+    The gamma likelihood is aggregated for each frame group separately. Additionally,
+    the localization density (detections per frame) is plotted alongside the 
+    result.
+
+    args
+    ----
+        track_csvs          :   str or list of str, trajectory CSV file paths or a
+                                directory with trajectory CSVs
+        diff_coefs          :   1D ndarray, the diffusion coefficients at which to 
+                                evaluate the likelihood function in squared um per sec
+        frame_interval      :   float, seconds
+        pixel_size_um       :   float, microns
+        loc_error           :   float, localization error in microns
+        start_frame         :   int
+        interval            :   int
+        dz                  :   float, microns
+        splitsize           :   int
+        max_jumps_per_track :   int
+        vmax                :   float
+        vmax_perc           :   float
+        log_y_axis          :   bool
+        out_png             :   str
+        out_csv             :   str
+        normalize_by_frame_group    :   bool
+
+    returns
+    -------
+        If *out_png* is specified, saves to that PNG. Otherwise returns
+        (
+            matplotlib.figure.Figure,
+            matplotlib.axes.Axes
+        )
+
+    """
+    if diff_coefs is None:
+        diff_coefs = DIFF_COEFS_DEFAULT
+        log_y_axis = True
+
+    # Load all of the tracks in this directory
+    tracks = load_tracks(*track_csvs, start_frame=start_frame, drop_singlets=True)
+    n_files = tracks["dataframe_index"].nunique()
+
+    # Coerce into ndarray
+    diff_coefs = np.asarray(diff_coefs)
+
+    # Calculate the likelihood for each diffusion coefficient for each trajectory
+    tracks_L, n_jumps, orig_track_indices, support = eval_likelihood(
+        tracks, likelihood="gamma", splitsize=splitsize, start_frame=start_frame,
+        pixel_size_um=pixel_size_um, frame_interval=frame_interval,
+        scale_by_jumps=True, dz=dz, diff_coefs=diff_coefs, loc_error=loc_error,
+        max_jumps_per_track=max_jumps_per_track)
+
+    # Map each trajectory back to the first frame in which it was found
+    m = len(orig_track_indices)
+    C = pd.DataFrame(index=np.arange(m), columns=["orig_track_index", "initial_frame"])
+    C["orig_track_index"] = orig_track_indices
+    initial_frames = tracks.groupby("trajectory", group_keys=orig_track_indices)["frame"].first()
+    C["initial_frame"] = C["orig_track_index"].map(initial_frames)
+    initial_frames = np.asarray(C["initial_frame"])
+
+    # Divide the entire frame range into intervals
+    intervals = np.arange(start_frame, tracks["frame"].max()+interval, interval)
+    n_intervals = len(intervals) - 1
+
+    # Localization density
+    locs_per_frame = tracks.groupby("frame").size()
+    loc_density = np.zeros(n_intervals, dtype=np.float64)
+
+    # For each interval, sum the likelihoods
+    intervals_L = np.zeros((n_intervals, tracks_L.shape[1]), dtype=np.float64)
+    for j in range(n_intervals):
+        start = intervals[j]
+        stop = intervals[j+1]
+        include = np.logical_and(initial_frames >= start, initial_frames < stop)
+        intervals_L[j,:] = tracks_L[include,:].sum(axis=0)
+
+        # Normalize
+        if normalize_by_frame_group and (intervals_L[j,:].sum() > 0):
+            intervals_L[j,:] /= intervals_L[j,:].sum()
+
+        # Localization density in this frame interval (# detections / frame)
+        include = np.logical_and(locs_per_frame.index >= start, locs_per_frame.index < stop)
+        loc_density[j] = locs_per_frame[include].sum() / (interval * n_files)
+
+    # Plot layout
+    y_ext = 2.0
+    x_ext = 7.0
+    extent = (0, x_ext, 0, y_ext)
+    fig, ax = plt.subplots(figsize=(x_ext, 2*y_ext))
+    fontsize = 8
+    if vmax is None:
+        vmax = np.percentile(intervals_L, vmax_perc)
+
+    # Plot the likelihoods
+    intervals_L = intervals_L.T 
+    S = ax.imshow(intervals_L, cmap="viridis", vmin=0, vmax=vmax, extent=extent, origin="lower")
+
+    # Make a log y-axis
+    if log_y_axis:
+        add_log_scale_imshow(ax, diff_coefs, fontsize=fontsize, side="y")        
+
+    # x-tick labels
+    n_labels = 11
+    space = n_intervals // n_labels 
+    xticks = (np.arange(n_intervals) * x_ext / n_intervals)[::space]
+    xticklabels = intervals[:-1][::space]
+    ax.set_xticks(xticks)
+    ax.set_xticklabels(xticklabels, fontsize=fontsize, rotation=90)
+
+    # Axis labels
+    ax.set_ylabel("Diffusion coefficient\n($\mu$m$^{2}$ s$^{-1}$)", fontsize=fontsize)
+    ax.set_xlabel("Frame", fontsize=fontsize)
+
+    # Plot localization density
+    divider = make_axes_locatable(ax)
+    ax2 = divider.append_axes("top", size="50%", pad=0.12)
+    ind = np.arange(n_intervals) * x_ext / n_intervals
+    ax2.plot(ind, loc_density, color="k", linestyle="-")
+    ax2.set_xticklabels([])
+    ax2.set_ylabel("Detections\nper frame", fontsize=fontsize)
+    ax2.set_xlim((0, x_ext))
+    ax2.set_xticks(xticks)
+    ax2.set_ylim((0, ax2.get_ylim()[1]))
+
+    # Color bar 
+    cbar = plt.colorbar(S, ax=ax, shrink=0.6)
+    cbar.ax.tick_params(labelsize=fontsize)
+    cbar.set_label("Aggregate likelihood", rotation=90, fontsize=fontsize)
+
+    # Save or return
+    if not out_png is None:
+        save_png(out_png, dpi=800)
+    else:
+        axes = np.array([ax, ax2])
+        return fig, axes 
+
 
 def gamma_likelihood_by_file(track_csvs, group_labels=None, diff_coefs=None,
     frame_interval=0.00748, pixel_size_um=0.16, loc_error=0.04, start_frame=None,

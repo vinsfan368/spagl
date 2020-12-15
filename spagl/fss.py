@@ -143,8 +143,9 @@ def fss(tracks, likelihood="gamma", splitsize=12, max_jumps_per_track=None,
         else:
             n_prev[:] = n[:]
 
-    # Adjust posterior distribution to account for defocalization probabilities
-    n = defoc_corr(n.T, support, likelihood=likelihood, 
+    # # Adjust posterior distribution to account for defocalization probabilities
+    n = n.T 
+    n = defoc_corr(n, support, likelihood=likelihood, 
         frame_interval=frame_interval, dz=dz)
 
     # Calculate the mean occupancies under the posterior model

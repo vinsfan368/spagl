@@ -102,6 +102,12 @@ def eval_likelihood(tracks, likelihood="gamma", splitsize=12,
     if (not splitsize is None) and (not splitsize is np.inf):
         jumps[:,1] = split_jumps(jumps, splitsize=splitsize)
 
+    # Make a map between the two sets of trajectory indices
+    track_map = pd.DataFrame(index=np.arange(len(orig_track_indices)), columns=["orig_track_index", "new_track_index"])
+    track_map["orig_track_index"] = orig_track_indices
+    track_map["new_track_index"] = jumps[:,1]
+    orig_track_indices = np.asarray(track_map.groupby("new_track_index")["orig_track_index"].first())
+
     # Calculate likelihoods for each trajectory
     L, n_jumps, track_indices, support = LIKELIHOODS[likelihood](jumps,
         frame_interval=frame_interval, max_jumps_per_track=max_jumps_per_track,

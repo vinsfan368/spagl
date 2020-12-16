@@ -17,5 +17,6 @@ from .plot import (
     rbme_likelihood_plot,
     fbme_likelihood_plot,
     gamma_likelihood_by_file,
-    gamma_likelihood_by_frame
+    gamma_likelihood_by_frame,
+    spatial_gamma_likelihood
 )

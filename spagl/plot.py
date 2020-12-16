@@ -990,6 +990,8 @@ def gamma_likelihood_by_file(track_csvs, group_labels=None, diff_coefs=None,
         y_ext = 2.0
         x_ext = 7.0
         fig, ax = plt.subplots(figsize=(x_ext, y_ext))
+        if n == 1:
+            ax = [ax]
         fontsize = 8
         if vmax is None:
             vmax = np.percentile(L, vmax_perc)
@@ -1130,6 +1132,8 @@ def gamma_likelihood_by_file(track_csvs, group_labels=None, diff_coefs=None,
         y_ext = 2.0 * n_groups 
         x_ext = 7.0
         fig, ax = plt.subplots(n_groups, 1, figsize=(x_ext, y_ext), sharex=True)
+        if n_groups == 1:
+            ax = [ax]
         fontsize = 10
 
         # Make the primary plot for each file group

@@ -994,6 +994,12 @@ def gamma_likelihood_by_file(track_csvs, group_labels=None, diff_coefs=None,
 
             L[i,:] = track_likelihoods
 
+        # Sort by descending number of trajectories
+        if scale_by_total_track_count:
+            order = np.argsort(L.sum(axis=1))
+            L = L[order,:]
+            track_csvs = [track_csvs[i] for i in order]
+
         # Plot layout
         y_ext = 2.0
         x_ext = 7.0
@@ -1117,6 +1123,7 @@ def gamma_likelihood_by_file(track_csvs, group_labels=None, diff_coefs=None,
                     track_likelihoods = defoc_corr(track_likelihoods, support, 
                         likelihood="gamma", frame_interval=frame_interval, dz=dz)
 
+                # Scale color maps by the total number of trajectories in that file
                 if scale_by_total_track_count:
                     track_likelihoods *= n_jumps.shape[0]
 
@@ -1125,6 +1132,12 @@ def gamma_likelihood_by_file(track_csvs, group_labels=None, diff_coefs=None,
                 if verbose:
                     sys.stdout.write("Finished with file {} in group {}...\r".format(i+1 ,g+1))
                     sys.stdout.flush()
+
+            # Order the files by the number of trajectories
+            if scale_by_total_track_count:
+                order = np.argsort(L.sum(axis=1))
+                L = L[order,:]
+                track_csvs[g] = [group_track_csvs[i] for i in order]
 
             # Store a reference to this file group's likelihood matrix
             L_matrices.append(L)

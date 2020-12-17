@@ -785,7 +785,8 @@ def gamma_likelihood_by_file(track_csvs, group_labels=None, diff_coefs=None,
     frame_interval=0.00748, pixel_size_um=0.16, loc_error=0.04, start_frame=None,
     dz=None, splitsize=12, max_jumps_per_track=None, vmax=None, vmax_perc=99,
     log_x_axis=True, label_by_file=False, scale_colors_by_group=False,
-    track_csv_ext="trajs.csv", out_png=None, out_csv=None, verbose=True):
+    track_csv_ext="trajs.csv", out_png=None, out_csv=None, verbose=True,
+    scale_by_total_track_count=False):
     """
     Plot the gamma approximation to the regular Brownian likelihood for
     a collection of files in a single heat map. 
@@ -900,6 +901,9 @@ def gamma_likelihood_by_file(track_csvs, group_labels=None, diff_coefs=None,
 
         verbose             :   bool, show progress
 
+        scale_by_total_track_count  :   bool, scale the color map for each file
+                                        by the number of trajectories in that file
+
     returns
     -------
         If *out_png* is specified, saves to that PNG. Otherwise returns
@@ -983,6 +987,10 @@ def gamma_likelihood_by_file(track_csvs, group_labels=None, diff_coefs=None,
             if (not dz is None) and (not dz is np.inf):
                 track_likelihoods = defoc_corr(track_likelihoods, support, 
                     likelihood="gamma", frame_interval=frame_interval, dz=dz)
+
+            # Scale by the number of trajectories in this file, if desired
+            if scale_by_total_track_count:
+                track_likelihoods *= n_jumps.shape[0]
 
             L[i,:] = track_likelihoods
 
@@ -1108,6 +1116,9 @@ def gamma_likelihood_by_file(track_csvs, group_labels=None, diff_coefs=None,
                 if (not dz is None) and (not dz is np.inf):
                     track_likelihoods = defoc_corr(track_likelihoods, support, 
                         likelihood="gamma", frame_interval=frame_interval, dz=dz)
+
+                if scale_by_total_track_count:
+                    track_likelihoods *= n_jumps.shape[0]
 
                 L[i,:] = track_likelihoods
 

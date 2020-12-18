@@ -16,6 +16,7 @@ from .utils import split_jumps
 # Raw likelihood functions
 from .lik import (
     gamma_likelihood,
+    rbme_marginal_likelihood,
     rbme_likelihood,
     fbme_likelihood
 )
@@ -23,6 +24,7 @@ from .lik import (
 # Available raw likelihood functions
 LIKELIHOODS = {
     "gamma": gamma_likelihood,
+    "rbme_marginal": rbme_marginal_likelihood,
     "rbme": rbme_likelihood,
     "fbme": fbme_likelihood
 }

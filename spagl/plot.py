@@ -331,7 +331,8 @@ def gamma_likelihood_plot(tracks, diff_coefs=None, frame_interval=0.00748,
 def rbme_likelihood_plot(tracks, diff_coefs=None, loc_errors=None,
     frame_interval=0.00748, start_frame=None, pixel_size_um=0.16, dz=None, 
     log_x_axis=True, log_y_axis=False, splitsize=12, cmap="viridis",
-    vmax=None, vmax_perc=99, out_png=None, out_csv=None):
+    vmax=None, vmax_perc=99, out_png=None, out_csv=None, show_iso_var=False,
+    verbose=True):
     """
     Evaluate the likelihood function for regular Brownian motion with 
     localization error on some trajectories.
@@ -393,7 +394,8 @@ def rbme_likelihood_plot(tracks, diff_coefs=None, loc_errors=None,
     track_likelihoods, n_jumps, orig_track_indices, support = eval_likelihood(
         tracks, likelihood="rbme", splitsize=splitsize, start_frame=start_frame,
         pixel_size_um=pixel_size_um, frame_interval=frame_interval,
-        scale_by_jumps=True, dz=None, diff_coefs=diff_coefs, loc_errors=loc_errors)
+        scale_by_jumps=True, dz=None, diff_coefs=diff_coefs, loc_errors=loc_errors,
+        verbose=verbose)
     diff_coefs = support[0]
     loc_errors = support[1]
 
@@ -425,7 +427,7 @@ def rbme_likelihood_plot(tracks, diff_coefs=None, loc_errors=None,
     # Color scale
     cbar = plt.colorbar(S, ax=axes, shrink=0.6)
     cbar.ax.tick_params(labelsize=fontsize)
-    cbar.set_label("Aggregate likelhood", rotation=90, fontsize=fontsize)
+    cbar.set_label("Aggregate likelihood", rotation=90, fontsize=fontsize)
 
     # Make the x-axis in terms of the log diffusion coefficient
     if log_x_axis:
@@ -455,6 +457,44 @@ def rbme_likelihood_plot(tracks, diff_coefs=None, loc_errors=None,
     axes.set_xlabel("Diffusion coefficient ($\mu$m$^{2}$ s$^{-1}$)", fontsize=fontsize)
     axes.set_ylabel("Localization error ($\mu$m)", fontsize=fontsize)
 
+    # Show iso-variance lines, if desired
+    if show_iso_var:
+
+        # The variance isotherms
+        var_iso_values = [0.01, 0.03, 0.1, 0.3, 1.0]
+
+        for const_var in var_iso_values:
+
+            # Calculate iso-variance lines
+            d_line = np.logspace(-2.0, 2.0, 30001)
+            le2_line = const_var - d_line * frame_interval
+            nonzero = np.logical_and(d_line > 0, le2_line > 0)
+
+            d_line = d_line[nonzero]
+            le2_line = le2_line[nonzero]
+
+            # Transform into axis coordinates
+            log_d_line = np.log10(d_line)
+            log_le2_line = np.log10(le2_line)
+
+            log_d_min = np.log10(min(diff_coefs))
+            log_d_max = np.log10(max(diff_coefs))
+
+            log_le2_min = np.log10(min(loc_errors))
+            log_le2_max = np.log10(max(loc_errors))
+
+            # Only include points that fall within the evaluated likelihood support
+            include_D = np.logical_and(log_d_line >= log_d_min, log_d_line <= log_d_max)
+            include_le2 = np.logical_and(log_le2_line >= log_le2_min, log_le2_line <= log_le2_max)
+            include = np.logical_and(include_D, include_le2)
+            log_d_line = log_d_line[include]
+            log_le2_line = log_le2_line[include]
+
+            u_log_d = x_ext * (log_d_line - log_d_min) / (log_d_max - log_d_min)
+            u_log_le2 = y_ext * (log_le2_line - log_le2_min) / (log_le2_max - log_le2_min)
+
+            axes.plot(u_log_d, u_log_le2, color='w', linestyle='--')
+
     # Save raw likelihoods, if desired
     if not out_csv is None:
 
@@ -473,8 +513,9 @@ def rbme_likelihood_plot(tracks, diff_coefs=None, loc_errors=None,
     # Save, if desired
     if not out_png is None:
         save_png(out_png, dpi=800)
+        return agg_lik, n_jumps, orig_track_indices, support
     else:
-        return fig, axes 
+        return fig, axes, agg_lik, n_jumps, orig_track_indices, support 
 
 def fbme_likelihood_plot(tracks, diff_coefs=None, hurst_pars=None, loc_error=0.04,
     frame_interval=0.00748, start_frame=None, pixel_size_um=0.16, dz=None, 
@@ -781,12 +822,12 @@ def gamma_likelihood_by_frame(*track_csvs, diff_coefs=None, frame_interval=0.007
         axes = np.array([ax, ax2])
         return fig, axes 
 
-def gamma_likelihood_by_file(track_csvs, group_labels=None, diff_coefs=None,
-    frame_interval=0.00748, pixel_size_um=0.16, loc_error=0.04, start_frame=None,
-    dz=None, splitsize=12, max_jumps_per_track=None, vmax=None, vmax_perc=99,
-    log_x_axis=True, label_by_file=False, scale_colors_by_group=False,
+def gamma_likelihood_by_file(track_csvs, likelihood="gamma", group_labels=None,
+    diff_coefs=None, frame_interval=0.00748, pixel_size_um=0.16, loc_error=0.04,
+    start_frame=None, dz=None, splitsize=12, max_jumps_per_track=None, vmax=None,
+    vmax_perc=99, log_x_axis=True, label_by_file=False, scale_colors_by_group=False,
     track_csv_ext="trajs.csv", out_png=None, out_csv=None, verbose=True,
-    scale_by_total_track_count=False):
+    scale_by_total_track_count=False, subplot_extent=(0, 7, 0, 2)):
     """
     Plot the gamma approximation to the regular Brownian likelihood for
     a collection of files in a single heat map. 
@@ -913,6 +954,9 @@ def gamma_likelihood_by_file(track_csvs, group_labels=None, diff_coefs=None,
         )
 
     """
+    assert likelihood in ["gamma", "rbme_marginal"], \
+        "likelihood must be one of `gamma`, `rbme_marginal`"
+
     if diff_coefs is None:
         diff_coefs = DIFF_COEFS_DEFAULT
         log_x_axis = True
@@ -974,11 +1018,18 @@ def gamma_likelihood_by_file(track_csvs, group_labels=None, diff_coefs=None,
             tracks = pd.read_csv(track_csv)
 
             # Evaluate likelihoods
-            track_likelihoods, n_jumps, orig_track_indices, support = eval_likelihood(
-                tracks, likelihood="gamma", splitsize=splitsize, start_frame=start_frame,
-                pixel_size_um=pixel_size_um, frame_interval=frame_interval,
-                scale_by_jumps=True, dz=None, diff_coefs=diff_coefs, loc_error=loc_error,
-                max_jumps_per_track=max_jumps_per_track)
+            if likelihood == "gamma":
+                track_likelihoods, n_jumps, orig_track_indices, support = eval_likelihood(
+                    tracks, likelihood="gamma", splitsize=splitsize, start_frame=start_frame,
+                    pixel_size_um=pixel_size_um, frame_interval=frame_interval,
+                    scale_by_jumps=True, dz=None, diff_coefs=diff_coefs, loc_error=loc_error,
+                    max_jumps_per_track=max_jumps_per_track)
+            elif likelihood == "rbme_marginal":
+                track_likelihoods, n_jumps, orig_track_indices, support = eval_likelihood(
+                    tracks, likelihood="rbme_marginal", splitsize=splitsize, start_frame=start_frame,
+                    pixel_size_um=pixel_size_um, frame_interval=frame_interval,
+                    scale_by_jumps=True, dz=None, diff_coefs=diff_coefs,
+                    max_jumps_per_track=max_jumps_per_track)
 
             # Aggregate likelihoods across all trajectories in the dataset
             track_likelihoods = track_likelihoods.sum(axis=0)
@@ -986,7 +1037,7 @@ def gamma_likelihood_by_file(track_csvs, group_labels=None, diff_coefs=None,
             # Apply defocalization correction
             if (not dz is None) and (not dz is np.inf):
                 track_likelihoods = defoc_corr(track_likelihoods, support, 
-                    likelihood="gamma", frame_interval=frame_interval, dz=dz)
+                    likelihood=likelihood, frame_interval=frame_interval, dz=dz)
 
             # Scale by the number of trajectories in this file, if desired
             if scale_by_total_track_count:
@@ -1001,8 +1052,7 @@ def gamma_likelihood_by_file(track_csvs, group_labels=None, diff_coefs=None,
             track_csvs = [track_csvs[i] for i in order]
 
         # Plot layout
-        y_ext = 2.0
-        x_ext = 7.0
+        _, x_ext, _, y_ext = subplot_extent 
         fig, ax = plt.subplots(figsize=(x_ext, y_ext))
         if n == 1:
             ax = [ax]
@@ -1109,11 +1159,18 @@ def gamma_likelihood_by_file(track_csvs, group_labels=None, diff_coefs=None,
 
                 # Evaluate likelihoods of each diffusion coefficient for this
                 # set of trajectories
-                track_likelihoods, n_jumps, orig_track_indices, support = eval_likelihood(
-                    tracks, likelihood="gamma", splitsize=splitsize, start_frame=start_frame,
-                    pixel_size_um=pixel_size_um, frame_interval=frame_interval,
-                    scale_by_jumps=True, dz=None, diff_coefs=diff_coefs, loc_error=loc_error,
-                    max_jumps_per_track=max_jumps_per_track)
+                if likelihood == "gamma":
+                    track_likelihoods, n_jumps, orig_track_indices, support = eval_likelihood(
+                        tracks, likelihood="gamma", splitsize=splitsize, start_frame=start_frame,
+                        pixel_size_um=pixel_size_um, frame_interval=frame_interval,
+                        scale_by_jumps=True, dz=None, diff_coefs=diff_coefs, loc_error=loc_error,
+                        max_jumps_per_track=max_jumps_per_track)
+                elif likelihood == "rbme_marginal":
+                    track_likelihoods, n_jumps, orig_track_indices, support = eval_likelihood(
+                        tracks, likelihood="rbme_marginal", splitsize=splitsize, start_frame=start_frame,
+                        pixel_size_um=pixel_size_um, frame_interval=frame_interval,
+                        scale_by_jumps=True, dz=None, diff_coefs=diff_coefs,
+                        max_jumps_per_track=max_jumps_per_track)                   
 
                 # Aggregate likelihoods across all trajectories in the dataset
                 track_likelihoods = track_likelihoods.sum(axis=0)
@@ -1121,7 +1178,7 @@ def gamma_likelihood_by_file(track_csvs, group_labels=None, diff_coefs=None,
                 # Apply defocalization correction
                 if (not dz is None) and (not dz is np.inf):
                     track_likelihoods = defoc_corr(track_likelihoods, support, 
-                        likelihood="gamma", frame_interval=frame_interval, dz=dz)
+                        likelihood=likelihood, frame_interval=frame_interval, dz=dz)
 
                 # Scale color maps by the total number of trajectories in that file
                 if scale_by_total_track_count:
@@ -1152,9 +1209,13 @@ def gamma_likelihood_by_file(track_csvs, group_labels=None, diff_coefs=None,
             vmax = [vmax for i in range(len(L_matrices))]
 
         # Layout for file group plot
-        y_ext_subplot = 2.0
-        y_ext = 2.0 * n_groups 
-        x_ext = 7.0
+        _, x_ext, _, y_ext_subplot = subplot_extent
+        y_ext = y_ext_subplot * n_groups
+
+        # y_ext_subplot = 2.0
+        # y_ext = 2.0 * n_groups 
+        # x_ext = 7.0
+
         fig, ax = plt.subplots(n_groups, 1, figsize=(x_ext, y_ext), sharex=True)
         if n_groups == 1:
             ax = [ax]

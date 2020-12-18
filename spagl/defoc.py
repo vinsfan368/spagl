@@ -405,6 +405,7 @@ def defoc_corr_fbm(L, diff_coefs, hurst_pars, frame_interval=0.00748, dz=0.7):
 # The available likelihood corrections
 LIKELIHOOD_CORR_FUNCS = {
     "gamma": defoc_corr_rbm,
+    "rbme_marginal": defoc_corr_rbm,
     "rbme": defoc_corr_rbme,
     "fbme": defoc_corr_fbm
 }

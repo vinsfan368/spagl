@@ -3,6 +3,8 @@
 lik.py -- trajectory likelihood functions
 
 """
+import sys
+
 import numpy as np 
 import pandas as pd 
 
@@ -17,6 +19,7 @@ from .utils import (
 # Default supports for the likelihood functions
 DIFF_COEFS_DEFAULT = np.logspace(-2.0, 2.0, 301)
 LOC_ERRORS_DEFAULT = np.arange(0.0, 0.102, 0.002)
+# LOC_ERRORS_DEFAULT = np.logspace(-3.0, 0, 51)
 HURST_PARS_DEFAULT = np.arange(0.05, 1.0, 0.05)
 
 def gamma_likelihood(jumps, diff_coefs=None, max_jumps_per_track=None,
@@ -140,8 +143,84 @@ def gamma_likelihood(jumps, diff_coefs=None, max_jumps_per_track=None,
 
     return L, np.asarray(S["n_jumps"]), np.asarray(S["trajectory"]), (diff_coefs,)
 
-def rbme_likelihood(jumps, diff_coefs=None, loc_errors=None, max_jumps_per_track=10,
-    frame_interval=0.00748):
+def rbme_marginal_likelihood(jumps, diff_coefs=None, loc_errors=None,
+    max_jumps_per_track=None, frame_interval=0.00748, verbose=False):
+    """
+    Likelihood functions for a regular Brownian motion with localization error,
+    marginalized on the localization error part. The result is a 1D likelihood
+    function evaluated on the diffusion coefficient.
+
+    args
+    ----
+        jumps                   :   2D ndarray, output of utils.tracks_to_jumps
+        diff_coefs              :   1D ndarray, the set of diffusion coefficients
+                                    at which to evaluate the likelihoods. If *None*,
+                                    a default scheme is used.
+        loc_errors              :   1D ndarray, the set of localization errors at 
+                                    which to evaluate the likelihoods. If *None*,
+                                    a default scheme is used.
+        max_jumps_per_track     :   int, the maximum number of jumps to use from
+                                    each trajectory
+        frame_interval          :   float, seconds
+        verbose                 :   bool, show progress
+
+    returns
+    -------
+        (
+            2D ndarray of shape (n_tracks, n_diff_coefs), the marginal likelihoods
+                of each diffusion coefficient for each trajectory. These likelihoods
+                are normalized to sum to 1 across all states for that trajectory;
+            1D ndarray of shape (n_tracks,), the number of jumps per trajectory;
+            1D ndarray of shape (n_tracks,), the indices of each trajectory in the 
+                original dataframe;
+            (
+                1D ndarray of shape  (n_diff_coef), the diffusion coefficients
+                    corresponding to each point on the support
+            )
+        )
+
+    """
+    # If not passed, use a default scheme for the diffusion coefficients and 
+    # localization errors
+    if diff_coefs is None:
+        diff_coefs = DIFF_COEFS_DEFAULT
+    if loc_errors is None:
+        loc_errors = LOC_ERRORS_DEFAULT 
+
+    # Get the size of the likelihood matrix for each trajectory
+    diff_coefs = np.asarray(diff_coefs)
+    loc_errors = np.asarray(loc_errors)
+    nD = diff_coefs.shape[0]
+    nLE = loc_errors.shape[0]
+
+    # Evaluate the RBME likelihood
+    rbme_lik, n_jumps, track_indices, support = rbme_likelihood(jumps,
+        diff_coefs=diff_coefs, loc_errors=loc_errors, frame_interval=frame_interval,
+        max_jumps_per_track=max_jumps_per_track, verbose=verbose)
+
+    # Estimate the relative size of each localization error bin. This is not
+    # trivial, since the points in *loc_errors* may be log-spaced. Here, we
+    # estimate the size of the bin around the i^th point by the average of the 
+    # distances between this point and the neighboring two points. The first 
+    # and last bin are assumed to have the same width as the bins after and 
+    # before them, respectively.
+    loc_error_sizes = loc_errors[1:] - loc_errors[:-1]
+    loc_error_sizes = 0.5 * (loc_error_sizes[1:] * loc_error_sizes[:-1])
+    loc_error_sizes = np.concatenate((
+        [loc_error_sizes[0]],
+        loc_error_sizes,
+        [loc_error_sizes[-1]]
+    ))
+
+    # Marginalize on the localization error
+    # marginal_lik = (rbme_lik * loc_error_sizes).sum(axis=2)
+    marginal_lik = rbme_lik.sum(axis=2)
+    marginal_lik = (marginal_lik.T / marginal_lik.sum(axis=1)).T 
+
+    return marginal_lik, n_jumps, track_indices, support[:1]
+
+def rbme_likelihood(jumps, diff_coefs=None, loc_errors=None, max_jumps_per_track=None,
+    frame_interval=0.00748, verbose=False):
     """
     Likelihood function for the jumps of a regular Brownian motion 
     with localization error. This likelihood is a function of the
@@ -162,6 +241,7 @@ def rbme_likelihood(jumps, diff_coefs=None, loc_errors=None, max_jumps_per_track
                                     from each trajectory
         n_dim                   :   int, the number of spatial dimensions
         frame_interval          :   float, seconds
+        verbose                 :   bool, show progress
 
     returns
     -------
@@ -288,6 +368,11 @@ def rbme_likelihood(jumps, diff_coefs=None, loc_errors=None, max_jumps_per_track
 
                 # Combine the axes components
                 log_L[n_jumps==l, i, j] = -0.5 * (y_ll + x_ll) - norm_fac 
+
+                # Show progress
+                if verbose:
+                    sys.stdout.write("Finished with condition (%d, %d) for track length %d...\r" % (i, j, l))
+                    sys.stdout.flush()
 
     # Normalize over all states for each trajectory
     L = np.zeros(log_L.shape, dtype=np.float64)

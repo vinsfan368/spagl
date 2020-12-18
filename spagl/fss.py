@@ -24,9 +24,15 @@ from .eval_lik import eval_likelihood
 # Defocalization probabilities
 from .defoc import defoc_corr 
 
-def fss(tracks, likelihood="gamma", splitsize=12, max_jumps_per_track=None,
+# The absolute minimum number of pseudocounts to use. Users
+# should always work with large sample sizes - preferably 
+# greater than 10000 trajectories. This is a safety feature 
+# against aberrant state estimations
+MIN_PSEUDOCOUNTS = 10.0
+
+def fss(tracks, likelihood="rbme_marginal", splitsize=20, max_jumps_per_track=None,
     start_frame=None, pixel_size_um=0.16, frame_interval=0.00748, 
-    dz=None, max_iter=1000, pseudocount_frac=0.05, convergence=1.0e-10,
+    dz=None, max_iter=1000, pseudocount_frac=0.005, convergence=0,
     **likelihood_kwargs):
     """
     Use a fixed state sampler (FSS) to estimate the underlying occupancies
@@ -105,31 +111,30 @@ def fss(tracks, likelihood="gamma", splitsize=12, max_jumps_per_track=None,
     # Axes in *R* corresponding to parameters for this likelihood
     par_indices = tuple([i for i in range(len(R.shape)-1)])   
 
-    # Prior over state occupancies. Do not use fewer than 2 pseudocounts
-    # per state.
-    pseudocounts = int(max(R.shape[-1] * pseudocount_frac, 2.0))
+    # Prior over state occupancies. Do not use fewer than *MIN_PSEUDOCOUNTS*
+    # pseudocounts per state
+    if likelihood_kwargs.get("verbose", False):
+        print("\nCalculated concentration parameter: ", (R.shape[-1] * pseudocount_frac))
+    pseudocounts = int(max(R.shape[-1] * pseudocount_frac, MIN_PSEUDOCOUNTS))
     prior = np.ones(R.shape[:-1], dtype=np.float64) * pseudocounts   
 
     # Previous Dirichlet prior estimate, to check for convergence
-    n_prev = np.zeros(R.shape[:-1], dtype=np.float64)
+    m_prev = np.zeros(R.shape[:-1], dtype=np.float64)
+
+    # Defocalization correction factors
+    corr = np.zeros(L.shape[:-1], dtype=np.float64)
 
     # Iterate until convergence or until *max_iter* is reached
     for iter_idx in tqdm(range(max_iter)):
 
         # Update the posterior occupancy distribution (*n* is the 
         # parameter to a Dirichlet distribution over occupancies)
-        n = (R * n_jumps).sum(axis=-1) + prior 
-
-        # print(n)
-        # n = defoc_corr(n.T, support, likelihood=likelihood,
-        #     frame_interval=frame_interval, dz=dz)
-        # print(n)
-        # print("\n\n")
-        # n += prior 
+        n = (R * n_jumps).sum(axis=-1)
+        m = n + prior 
 
         # Exponential of the expected log occupancies under the 
         # current posterior model
-        exp_log_tau = np.exp(digamma(n))
+        exp_log_tau = np.exp(digamma(m))
 
         # Calculate posterior probabilities over the state assignments
         # and normalize over all states for each trajectory
@@ -137,13 +142,13 @@ def fss(tracks, likelihood="gamma", splitsize=12, max_jumps_per_track=None,
         R = R / R.sum(axis=par_indices)
 
         # Check for convergence
-        change = n - n_prev 
+        change = m - m_prev 
         if (np.abs(change) < convergence).all():
             break
         else:
-            n_prev[:] = n[:]
+            m_prev[:] = m[:]
 
-    # # Adjust posterior distribution to account for defocalization probabilities
+    # Adjust posterior distribution to account for defocalization probabilities
     n = n.T 
     n = defoc_corr(n, support, likelihood=likelihood, 
         frame_interval=frame_interval, dz=dz)

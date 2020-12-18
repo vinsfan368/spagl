@@ -18,12 +18,11 @@ from .utils import (
 
 # Default supports for the likelihood functions
 DIFF_COEFS_DEFAULT = np.logspace(-2.0, 2.0, 301)
-LOC_ERRORS_DEFAULT = np.arange(0.0, 0.102, 0.002)
-# LOC_ERRORS_DEFAULT = np.logspace(-3.0, 0, 51)
+LOC_ERRORS_DEFAULT = np.arange(0.0, 0.062, 0.002)
 HURST_PARS_DEFAULT = np.arange(0.05, 1.0, 0.05)
 
 def gamma_likelihood(jumps, diff_coefs=None, max_jumps_per_track=None,
-    n_dim=2, frame_interval=0.00748, loc_error=0.035, mode="point"):
+    n_dim=2, frame_interval=0.00748, loc_error=0.035, mode="point", **kwargs):
     """
     Gamma approximation to the likelihood of a regular Brownian motion
     with localization error.
@@ -144,7 +143,7 @@ def gamma_likelihood(jumps, diff_coefs=None, max_jumps_per_track=None,
     return L, np.asarray(S["n_jumps"]), np.asarray(S["trajectory"]), (diff_coefs,)
 
 def rbme_marginal_likelihood(jumps, diff_coefs=None, loc_errors=None,
-    max_jumps_per_track=None, frame_interval=0.00748, verbose=False):
+    max_jumps_per_track=None, frame_interval=0.00748, verbose=False, **kwargs):
     """
     Likelihood functions for a regular Brownian motion with localization error,
     marginalized on the localization error part. The result is a 1D likelihood
@@ -220,7 +219,7 @@ def rbme_marginal_likelihood(jumps, diff_coefs=None, loc_errors=None,
     return marginal_lik, n_jumps, track_indices, support[:1]
 
 def rbme_likelihood(jumps, diff_coefs=None, loc_errors=None, max_jumps_per_track=None,
-    frame_interval=0.00748, verbose=False):
+    frame_interval=0.00748, verbose=False, **kwargs):
     """
     Likelihood function for the jumps of a regular Brownian motion 
     with localization error. This likelihood is a function of the
@@ -385,7 +384,7 @@ def rbme_likelihood(jumps, diff_coefs=None, loc_errors=None, max_jumps_per_track
     return L, n_jumps, track_indices, (diff_coefs, loc_errors)
 
 def fbme_likelihood(jumps, diff_coefs=None, hurst_pars=None, max_jumps_per_track=10,
-    frame_interval=0.00748, loc_error=0.035):
+    frame_interval=0.00748, loc_error=0.035, **kwargs):
     """
     Likelihood function for a fractional Brownian motion with localization
     error, assuming that the localization error is known in advance. This

@@ -30,7 +30,7 @@ from .defoc import defoc_corr
 # against aberrant state estimations
 MIN_PSEUDOCOUNTS = 10.0
 
-def fss(tracks, likelihood="rbme_marginal", splitsize=20, max_jumps_per_track=None,
+def fss(tracks, likelihood="rbme_marginal", splitsize=12, max_jumps_per_track=None,
     start_frame=None, pixel_size_um=0.16, frame_interval=0.00748, 
     dz=None, max_iter=1000, pseudocount_frac=0.005, convergence=0,
     **likelihood_kwargs):

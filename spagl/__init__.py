@@ -16,7 +16,10 @@ from .plot import (
     gamma_likelihood_plot,
     rbme_likelihood_plot,
     fbme_likelihood_plot,
-    gamma_likelihood_by_file,
-    gamma_likelihood_by_frame,
-    spatial_gamma_likelihood
+    likelihood_by_file,
+    likelihood_by_frame,
+    spatial_likelihood
 )
+
+# Fixed state samplers
+from .fss import fss 

@@ -671,11 +671,11 @@ def fbme_likelihood_plot(tracks, diff_coefs=None, hurst_pars=None, loc_error=0.0
 ## CROSS-FILE LIKELIHOOD PLOTS ##
 #################################
 
-def gamma_likelihood_by_frame(*track_csvs, diff_coefs=None, frame_interval=0.00748,
-    pixel_size_um=0.16, loc_error=0.04, start_frame=0, interval=100,
-    dz=None, splitsize=12, max_jumps_per_track=None, vmax=None, vmax_perc=99,
-    log_y_axis=True, out_png=None, out_csv=None, normalize_by_frame_group=True,
-    extent=(0, 7, 0, 1.5)):
+def likelihood_by_frame(*track_csvs, likelihood="rbme_marginal", diff_coefs=None,
+    frame_interval=0.00748, pixel_size_um=0.16, loc_error=0.04, start_frame=0,
+    interval=100, dz=None, splitsize=12, max_jumps_per_track=None, vmax=None,
+    vmax_perc=99, log_y_axis=True, out_png=None, out_csv=None,
+    normalize_by_frame_group=True, extent=(0, 7, 0, 1.5)):
     """
     Plot the gamma aggregated likelihood as a function of the frame in which 
     each trajectory was found.
@@ -690,21 +690,39 @@ def gamma_likelihood_by_frame(*track_csvs, diff_coefs=None, frame_interval=0.007
     ----
         track_csvs          :   str or list of str, trajectory CSV file paths or a
                                 directory with trajectory CSVs
+
+        likelihood          :   str, "gamma" or "rbme_marginal"; the type of 
+                                likelihood function to use
+
         diff_coefs          :   1D ndarray, the diffusion coefficients at which to 
                                 evaluate the likelihood function in squared um per sec
+
         frame_interval      :   float, seconds
+
         pixel_size_um       :   float, microns
+
         loc_error           :   float, localization error in microns
+
         start_frame         :   int
+
         interval            :   int
+
         dz                  :   float, microns
+
         splitsize           :   int
+
         max_jumps_per_track :   int
+
         vmax                :   float
+
         vmax_perc           :   float
+
         log_y_axis          :   bool
+
         out_png             :   str
+
         out_csv             :   str
+
         normalize_by_frame_group    :   bool
 
     returns
@@ -728,11 +746,18 @@ def gamma_likelihood_by_frame(*track_csvs, diff_coefs=None, frame_interval=0.007
     diff_coefs = np.asarray(diff_coefs)
 
     # Calculate the likelihood for each diffusion coefficient for each trajectory
-    tracks_L, n_jumps, orig_track_indices, support = eval_likelihood(
-        tracks, likelihood="gamma", splitsize=splitsize, start_frame=start_frame,
-        pixel_size_um=pixel_size_um, frame_interval=frame_interval,
-        scale_by_jumps=True, dz=dz, diff_coefs=diff_coefs, loc_error=loc_error,
-        max_jumps_per_track=max_jumps_per_track)
+    if likelihood == "gamma":
+        tracks_L, n_jumps, orig_track_indices, support = eval_likelihood(
+            tracks, likelihood=likelihood, splitsize=splitsize, start_frame=start_frame,
+            pixel_size_um=pixel_size_um, frame_interval=frame_interval,
+            scale_by_jumps=True, dz=dz, diff_coefs=diff_coefs,
+            max_jumps_per_track=max_jumps_per_track)
+    elif likelihood == "rbme_marginal":
+        tracks_L, n_jumps, orig_track_indices, support = eval_likelihood(
+            tracks, likelihood=likelihood, splitsize=splitsize, start_frame=start_frame,
+            pixel_size_um=pixel_size_um, frame_interval=frame_interval,
+            scale_by_jumps=True, dz=dz, diff_coefs=diff_coefs, 
+            max_jumps_per_track=max_jumps_per_track, verbose=True)
 
     # Map each trajectory back to the first frame in which it was found
     m = len(orig_track_indices)
@@ -822,7 +847,7 @@ def gamma_likelihood_by_frame(*track_csvs, diff_coefs=None, frame_interval=0.007
         axes = np.array([ax, ax2])
         return fig, axes 
 
-def gamma_likelihood_by_file(track_csvs, likelihood="gamma", group_labels=None,
+def likelihood_by_file(track_csvs, likelihood="rbme_marginal", group_labels=None,
     diff_coefs=None, frame_interval=0.00748, pixel_size_um=0.16, loc_error=0.04,
     start_frame=None, dz=None, splitsize=12, max_jumps_per_track=None, vmax=None,
     vmax_perc=99, log_x_axis=True, label_by_file=False, scale_colors_by_group=False,
@@ -884,6 +909,9 @@ def gamma_likelihood_by_file(track_csvs, likelihood="gamma", group_labels=None,
     ----
         track_csvs          :   list of file paths, list of directory paths,
                                 or list of lists of file paths (see note above)
+
+        likelihood          :   str, "gamma" or "rbme_marginal"; the type of 
+                                likelihood function to use.
 
         group_labels        :   list of str, the label for each file group. If 
                                 *track_csvs* is just a list of file paths, then
@@ -1029,7 +1057,7 @@ def gamma_likelihood_by_file(track_csvs, likelihood="gamma", group_labels=None,
                     tracks, likelihood="rbme_marginal", splitsize=splitsize, start_frame=start_frame,
                     pixel_size_um=pixel_size_um, frame_interval=frame_interval,
                     scale_by_jumps=True, dz=None, diff_coefs=diff_coefs,
-                    max_jumps_per_track=max_jumps_per_track)
+                    max_jumps_per_track=max_jumps_per_track, verbose=verbose)
 
             # Aggregate likelihoods across all trajectories in the dataset
             track_likelihoods = track_likelihoods.sum(axis=0)
@@ -1170,7 +1198,7 @@ def gamma_likelihood_by_file(track_csvs, likelihood="gamma", group_labels=None,
                         tracks, likelihood="rbme_marginal", splitsize=splitsize, start_frame=start_frame,
                         pixel_size_um=pixel_size_um, frame_interval=frame_interval,
                         scale_by_jumps=True, dz=None, diff_coefs=diff_coefs,
-                        max_jumps_per_track=max_jumps_per_track)                   
+                        max_jumps_per_track=max_jumps_per_track, verbose=verbose) 
 
                 # Aggregate likelihoods across all trajectories in the dataset
                 track_likelihoods = track_likelihoods.sum(axis=0)
@@ -1187,8 +1215,7 @@ def gamma_likelihood_by_file(track_csvs, likelihood="gamma", group_labels=None,
                 L[i,:] = track_likelihoods
 
                 if verbose:
-                    sys.stdout.write("Finished with file {} in group {}...\r".format(i+1 ,g+1))
-                    sys.stdout.flush()
+                    print("\nFinished with file {} in group {}...\n".format(i+1 ,g+1))
 
             # Order the files by the number of trajectories
             if scale_by_total_track_count:
@@ -1308,15 +1335,13 @@ def gamma_likelihood_by_file(track_csvs, likelihood="gamma", group_labels=None,
             # Save to the CSV
             out_df.to_csv(out_csv, index=False)
 
-    if verbose: print("")
-
     # Save if desired
     if not out_png is None:
         save_png(out_png, dpi=800)
     else:
         return fig, ax 
 
-def spatial_gamma_likelihood(track_csv, diff_coefs, posterior=None, 
+def spatial_likelihood(track_csv, diff_coefs, likelihood="rbme_marginal", posterior=None, 
     frame_interval=0.00748, pixel_size_um=0.16, loc_error=0.04, start_frame=None,
     dz=None, bin_size_um=0.05, filter_kernel_um=0.12, splitsize=12,
     max_jumps_per_track=None, vmax=None, vmax_perc=99, out_png=None,
@@ -1336,6 +1361,9 @@ def spatial_gamma_likelihood(track_csv, diff_coefs, posterior=None,
         diff_coefs          :   1D ndarray, the set of diffusion
                                 coefficients at which to evaluate the 
                                 likelihood (in squared microns per sec)
+
+        likelihood          :   str, "gamma" or "rbme_marginal"; the 
+                                type of likelihood function to use.
 
         posterior           :   1D ndarray, the posterior probability 
                                 for each diffusion coefficient. If *None*,
@@ -1411,20 +1439,35 @@ def spatial_gamma_likelihood(track_csv, diff_coefs, posterior=None,
 
     # Calculate likelihoods of each diffusion coefficient, given each 
     # trajectory
-    L, n_jumps, track_indices, support = eval_likelihood(
-        tracks,
-        diff_coefs=diff_coefs,
-        likelihood="gamma",
-        splitsize=splitsize,
-        max_jumps_per_track=max_jumps_per_track,
-        start_frame=start_frame,
-        pixel_size_um=pixel_size_um,
-        frame_interval=frame_interval,
-        scale_by_jumps=False,
-        dz=dz,
-        loc_error=loc_error,
-        mode="point"
-    )
+    if likelihood == "gamma":
+        L, n_jumps, track_indices, support = eval_likelihood(
+            tracks,
+            diff_coefs=diff_coefs,
+            likelihood="gamma",
+            splitsize=splitsize,
+            max_jumps_per_track=max_jumps_per_track,
+            start_frame=start_frame,
+            pixel_size_um=pixel_size_um,
+            frame_interval=frame_interval,
+            scale_by_jumps=False,
+            dz=dz,
+            loc_error=loc_error,
+            mode="point"
+        )
+    elif likelihood == "rbme_marginal":
+        L, n_jumps, track_indices, support = eval_likelihood(
+            tracks,
+            diff_coefs=diff_coefs,
+            likelihood="rbme_marginal",
+            splitsize=splitsize,
+            max_jumps_per_track=max_jumps_per_track,
+            start_frame=start_frame,
+            pixel_size_um=pixel_size_um,
+            frame_interval=frame_interval,
+            scale_by_jumps=False,
+            dz=dz,
+            verbose=True,
+        )       
 
     # Trajectory indices after splitting
     new_track_indices = np.arange(len(track_indices))

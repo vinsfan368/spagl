@@ -1636,7 +1636,7 @@ def spatial_likelihood(track_csv, diff_coefs, likelihood="rbme_marginal", poster
 
 def fss_plot(tracks, start_frame=None, pixel_size_um=0.16, frame_interval=0.00748,
     dz=None, max_iter=500, convergence=1.0e-8, splitsize=20, 
-    max_jumps_per_track=None, pseudocount_frac=0.00001, verbose=True,
+    max_jumps_per_track=None, pseudocount_frac=0.001, verbose=True,
     out_png=None, out_csv=None):
     """
     This function estimates the underlying state distribution for a set of 

@@ -27,12 +27,12 @@ from .defoc import defoc_corr
 # The absolute minimum number of pseudocounts to use. Users
 # should always work with large sample sizes - preferably 
 # greater than 10000 trajectories. This is a safety feature 
-# against aberrant state estimations
-MIN_PSEUDOCOUNTS = 2.0
+# against aberrant state estimations.
+MIN_PSEUDOCOUNTS = 10.0
 
 def fss(tracks, likelihood="rbme_marginal", splitsize=20, max_jumps_per_track=None,
     start_frame=None, pixel_size_um=0.16, frame_interval=0.00748, 
-    dz=None, max_iter=1000, pseudocount_frac=0.005, convergence=0,
+    dz=None, max_iter=1000, pseudocount_frac=0.001, convergence=0,
     **likelihood_kwargs):
     """
     Use a fixed state sampler (FSS) to estimate the underlying occupancies

@@ -20,6 +20,7 @@ import pandas as pd
 
 # Plotting
 import matplotlib.pyplot as plt 
+import matplotlib.gridspec as grd 
 
 # Set all fonts to Arial
 import matplotlib
@@ -42,6 +43,9 @@ from .lik import (
 
 # Defocalization terms
 from .defoc import defoc_corr 
+
+# Fixed state sampler
+from .fss import fss 
 
 # Load trajectories from a directory or files
 from .utils import load_tracks
@@ -203,7 +207,7 @@ def try_add_scalebar(axes, pixel_size, units="um", fontsize=8, location="lower l
 
 def gamma_likelihood_plot(tracks, diff_coefs=None, frame_interval=0.00748,
     pixel_size_um=0.16, loc_error=0.04, start_frame=None, dz=None, 
-    log_x_axis=True, splitsize=12, d_err=True, ylim=None, axes=None,
+    log_x_axis=True, splitsize=20, d_err=True, ylim=None, axes=None,
     truncate_immobile_frac=False, out_png=None, out_csv=None):
     """
     Evaluate the gamma approximation to the regular Brownian motion likelihood
@@ -330,7 +334,7 @@ def gamma_likelihood_plot(tracks, diff_coefs=None, frame_interval=0.00748,
 
 def rbme_likelihood_plot(tracks, diff_coefs=None, loc_errors=None,
     frame_interval=0.00748, start_frame=None, pixel_size_um=0.16, dz=None, 
-    log_x_axis=True, log_y_axis=False, splitsize=12, cmap="viridis",
+    log_x_axis=True, log_y_axis=False, splitsize=20, cmap="viridis",
     vmax=None, vmax_perc=99, out_png=None, out_csv=None, show_iso_var=False,
     verbose=True):
     """
@@ -519,7 +523,7 @@ def rbme_likelihood_plot(tracks, diff_coefs=None, loc_errors=None,
 
 def fbme_likelihood_plot(tracks, diff_coefs=None, hurst_pars=None, loc_error=0.04,
     frame_interval=0.00748, start_frame=None, pixel_size_um=0.16, dz=None, 
-    log_x_axis=True, splitsize=12, cmap="viridis", vmax=None, vmax_perc=99,
+    log_x_axis=True, splitsize=20, cmap="viridis", vmax=None, vmax_perc=99,
     out_png=None, out_csv=None):
     """
     Evaluate the likelihood function for regular Brownian motion with 
@@ -665,15 +669,13 @@ def fbme_likelihood_plot(tracks, diff_coefs=None, hurst_pars=None, loc_error=0.0
     else:
         return fig, axes 
 
-
-
-#################################
-## CROSS-FILE LIKELIHOOD PLOTS ##
-#################################
+###########################################################
+## FILE-WISE, FRAME-WISE, or SPACE-WISE LIKELIHOOD PLOTS ##
+###########################################################
 
 def likelihood_by_frame(*track_csvs, likelihood="rbme_marginal", diff_coefs=None,
     frame_interval=0.00748, pixel_size_um=0.16, loc_error=0.04, start_frame=0,
-    interval=100, dz=None, splitsize=12, max_jumps_per_track=None, vmax=None,
+    interval=100, dz=None, splitsize=20, max_jumps_per_track=None, vmax=None,
     vmax_perc=99, log_y_axis=True, out_png=None, out_csv=None,
     normalize_by_frame_group=True, extent=(0, 7, 0, 1.5)):
     """
@@ -849,7 +851,7 @@ def likelihood_by_frame(*track_csvs, likelihood="rbme_marginal", diff_coefs=None
 
 def likelihood_by_file(track_csvs, likelihood="rbme_marginal", group_labels=None,
     diff_coefs=None, frame_interval=0.00748, pixel_size_um=0.16, loc_error=0.04,
-    start_frame=None, dz=None, splitsize=12, max_jumps_per_track=None, vmax=None,
+    start_frame=None, dz=None, splitsize=20, max_jumps_per_track=None, vmax=None,
     vmax_perc=99, log_x_axis=True, label_by_file=False, scale_colors_by_group=False,
     track_csv_ext="trajs.csv", out_png=None, out_csv=None, verbose=True,
     scale_by_total_track_count=False, subplot_extent=(0, 7, 0, 2)):
@@ -1343,7 +1345,7 @@ def likelihood_by_file(track_csvs, likelihood="rbme_marginal", group_labels=None
 
 def spatial_likelihood(track_csv, diff_coefs, likelihood="rbme_marginal", posterior=None, 
     frame_interval=0.00748, pixel_size_um=0.16, loc_error=0.04, start_frame=None,
-    dz=None, bin_size_um=0.05, filter_kernel_um=0.12, splitsize=12,
+    dz=None, bin_size_um=0.05, filter_kernel_um=0.12, splitsize=20,
     max_jumps_per_track=None, vmax=None, vmax_perc=99, out_png=None,
     fontsize=10, normalize_by_loc_density=False, pos_cols=["y", "x"],
     normalize_diff_coefs_separately=True, count_by_jumps=False):
@@ -1626,4 +1628,208 @@ def spatial_likelihood(track_csv, diff_coefs, likelihood="rbme_marginal", poster
 
     # Return the localization density and spatial likelihoods
     return density, H
+
+
+###############################
+## FIXED STATE SAMPLER PLOTS ##
+###############################
+
+def fss_plot(tracks, start_frame=None, pixel_size_um=0.16, frame_interval=0.00748,
+    dz=None, max_iter=500, convergence=1.0e-8, splitsize=20, 
+    max_jumps_per_track=None, pseudocount_frac=0.00001, verbose=True,
+    out_png=None, out_csv=None):
+    """
+    This function estimates the underlying state distribution for a set of 
+    trajectories using a fixed state sampler. The default settings are intended
+    to be extremely conservative and robust, so change them at your peril.
+
+    The resulting plot has three panels:
+
+        (A) The aggregated RBME (regular Brownian motion with localization 
+            error) likelihood function across all trajectories;
+
+        (B) the posterior mean RBME state occupations as a function of both
+            diffusion coefficient and localization error;
+
+        (C) the posterior mean RBME state occupations marginalized on the 
+            localization error
+
+    note on usage
+    -------------
+
+        If *out_png* is set, makes the plot and saves to the indicated PNG.
+        Otherwise, does not make a plot with th results.
+
+        If *out_csv* is set, saves the resulting likelihood function and 
+        posterior mean density to the CSV. Otherwise does not save the 
+        results.
+
+    args
+    ----
+        tracks                  :   pandas.DataFrame, a set of trajectories
+                                    with the "trajectory", "frame", "y",
+                                    and "x" columns;
+
+        start_frame             :   int, disregard trajectories before this 
+                                    frame;
+
+        pixel_size_um           :   float, size of pixels in microns;
+
+        frame_interval          :   float, the frame interval in seconds;
+
+        dz                      :   float, focal depth in microns;
+
+        max_iter                :   float, maximum number of iterations to do
+                                    (unless we call convergence);
+
+        convergence             :   float, criterion for convergence;
+
+        splitsize               :   int. If trajectories have more jumps than
+                                    this, split them into smaller trajectories;
+
+        max_jumps_per_track     :   int, maximum number of jumps to include from
+                                    any given trajectory;
+
+        pseudocount_frac        :   float, the pseudocounts expressed as a 
+                                    fraction of the total number of jumps in 
+                                    the set of trajectories;
+
+        verbose                 :   bool, show progress;
+
+        out_png                 :   str, output PNG for saving plots;
+
+        out_csv                 :   str, output CSV for saving the state 
+                                    likelihoods and posterior occupations
+
+    returns
+    -------
+        (
+            3D ndarray of shape (n_tracks, n_diff_coefs, n_loc_errors), the 
+                posterior probability of each state for each trajectory;
+
+            2D ndarray of shape (n_diff_coefs, n_loc_errors), the parameter
+                for the posterior Dirichlet distribution over states;
+
+            2D ndarray, the mean of the posterior distribution over states;
+
+            3D ndarray of shape (n_tracks, n_diff_coefs, n_loc_errors), the
+                naive likelihood of each state given each trajectory;
+
+            1D ndarray of shape (n_tracks,), the number of jumps in each 
+                trajectory;
+
+            1D ndarray of shape (n_tracks,), the indices of each trajectory
+                in the original dataframe;
+
+            (
+                1D ndarray of shape (n_diff_coefs,), the set of diffusion
+                    coefficients for each state in squared microns per sec;
+
+                1D ndarray of shape (n_lox_errors), the set of localization 
+                    errors for each state in microns (root variance)
+            )
+        )
+
+    """
+    if verbose: print("Number of trajectories: {}".format(tracks['trajectory'].nunique()))
+
+    # Run the finite state sampler
+    if verbose: print("Running the finite state sampler...")
+    R, n, posterior_mean, likelihood, n_jumps, track_indices, support = fss(
+        tracks, pixel_size_um=pixel_size_um, likelihood="rbme", dz=dz,
+        splitsize=splitsize, verbose=verbose, pseudocount_frac=pseudocount_frac,
+        max_iter=max_iter, frame_interval=frame_interval
+    )
+
+    # Aggregate likelihood across all trajectories
+    agg_lik = likelihood.sum(axis=0)
+    agg_lik /= agg_lik.sum()
+
+    # Marginalize the posterior mean on the localization error
+    posterior_mean_marg = posterior_mean.sum(axis=1)
+    posterior_mean_marg /= posterior_mean_marg.sum()
+
+    # Make a plot of the result
+    if not out_png is None:
+        if verbose: print("Making plot...")
+
+        # Plot layout
+        fig, ax = plt.subplots(figsize=(6, 5))
+        fontsize = 10
+        gs = grd.GridSpec(3, 1, height_ratios=(2, 2, 1), width_ratios=None, hspace=0.75)
+        ax0 = plt.subplot(gs[0])
+        ax1 = plt.subplot(gs[1])
+        ax2 = plt.subplot(gs[2])
+        ax = [ax0, ax1, ax2]
+
+        # Color map scaling
+        vmax0 = np.percentile(agg_lik, 99.5)
+        vmax1 = np.percentile(posterior_mean, 99.5)
+
+        # Plot the aggregate likelihood function
+        p0 = ax[0].imshow(agg_lik.T, cmap="viridis", origin="lower", aspect="auto",
+            vmin=0, vmax=vmax0)
+        p1 = ax[1].imshow(posterior_mean.T, cmap="viridis", origin="lower", aspect="auto",
+            vmin=0, vmax=vmax1)
+
+        # Add log scales for the x-axis
+        add_log_scale_imshow(ax[0], support[0], side="x")
+        add_log_scale_imshow(ax[1], support[0], side="x")
+
+        # y-ticks for localization error
+        n_yticks = 7
+        space = support[1].shape[0] // n_yticks
+        yticks = np.arange(support[1].shape[0])[::space]
+        yticklabels = ['%.3f' % i for i in support[1][::space]]
+        for j in range(2):
+            ax[j].set_yticks(yticks)
+            ax[j].set_yticklabels(yticklabels, fontsize=fontsize)
+            ax[j].set_ylabel("Localization error ($\mu$m)", fontsize=fontsize)
+
+        # Show the posterior mean marginalized on localization error
+        ax[2].plot(support[0], posterior_mean_marg, color='k')
+        ax[2].set_xscale("log")
+        ax[2].set_ylabel("Marginal\nposterior\nmean", fontsize=fontsize)
+        ax[2].set_xlim((0.01, 100.0))
+        ax[2].set_ylim((0, posterior_mean_marg[support[0]>0.05].max()*2.0))
+        ax[2].set_xlabel("Diffusion coefficient ($\mu$m$^{2}$ s$^{-1}$)", fontsize=fontsize)
+
+        # Subplot titles
+        ax[0].set_title("Aggregated likelihood across all trajectories", fontsize=fontsize)
+        ax[1].set_title("Posterior RBME mean", fontsize=fontsize)
+
+        # Save
+        save_png(out_png, dpi=800)
+
+    # Save the output to a CSV
+    if not out_csv is None:
+
+        # CSV output prefix
+        out_prefix = os.path.splitext(out_csv)[0]
+
+        # Number of unique states
+        M = support[0].shape[0] * support[1].shape[0]
+
+        # Save the posterior mean as a function of both diffusion coefficient
+        # and localization error
+        out_df = pd.DataFrame(index=np.arange(M), columns=["diff_coef", "loc_error", "agg_lik", "posterior_mean"])
+        out_df["diff_coef"] = np.tile(support[0], support[1].shape[0])
+        out_df["loc_error"] = np.tile(support[1], support[0].shape[0])
+        out_df["agg_lik"] = agg_lik.ravel()
+        out_df["posterior_mean"] = posterior_mean.ravel()
+        out_csv_rb = "{}_rbme_posterior.csv".format(out_prefix)
+        out_df.to_csv(out_csv_rb, index=False)
+        if verbose: print("Saved posterior mean to {}".format(out_csv_rb))
+
+        # Save the posterior mean marginalized on the localization error
+        n_dc = support[0].shape[0]
+        out_df = pd.DataFrame(index=np.arange(n_dc), columns=["diff_coef", "posterior_mean"])
+        out_df["diff_coef"] = support[0]
+        out_df["posterior_mean"] = posterior_mean_marg 
+        out_csv_rbm = "{}_rbme_marginal_posterior.csv".format(out_prefix)
+        out_df.to_csv(out_csv_rbm, index=False)
+        if verbose: print("Saved posterior mean to {}".format(out_csv_rbm))
+
+    # Return the output
+    return R, n, posterior_mean, likelihood, n_jumps, track_indices, support 
 

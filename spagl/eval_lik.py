@@ -35,7 +35,7 @@ from .utils import tracks_to_jumps
 # Correct for defocalization
 from .defoc import defoc_corr
 
-def eval_likelihood(tracks, likelihood="gamma", splitsize=12,
+def eval_likelihood(tracks, likelihood="rbme_marginal", splitsize=20,
     max_jumps_per_track=None, start_frame=None, pixel_size_um=0.16,
     frame_interval=0.00748, scale_by_jumps=True, dz=None, **kwargs):
     """

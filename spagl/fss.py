@@ -28,9 +28,9 @@ from .defoc import defoc_corr
 # should always work with large sample sizes - preferably 
 # greater than 10000 trajectories. This is a safety feature 
 # against aberrant state estimations
-MIN_PSEUDOCOUNTS = 10.0
+MIN_PSEUDOCOUNTS = 2.0
 
-def fss(tracks, likelihood="rbme_marginal", splitsize=12, max_jumps_per_track=None,
+def fss(tracks, likelihood="rbme_marginal", splitsize=20, max_jumps_per_track=None,
     start_frame=None, pixel_size_um=0.16, frame_interval=0.00748, 
     dz=None, max_iter=1000, pseudocount_frac=0.005, convergence=0,
     **likelihood_kwargs):
@@ -84,6 +84,10 @@ def fss(tracks, likelihood="rbme_marginal", splitsize=12, max_jumps_per_track=No
             n : ndarray, the parameter for the Dirichlet posterior 
                 distribution over state occupancies;
 
+            L : ndarray, the likelihood functions across all states
+                for all trajectories. L[i,j,...] is the likelihood
+                of state (j,...) given trajectory i;
+
             mean_occs : ndarray, the mean state occupancy under the 
                 posterior distribution;
 
@@ -113,10 +117,10 @@ def fss(tracks, likelihood="rbme_marginal", splitsize=12, max_jumps_per_track=No
 
     # Prior over state occupancies. Do not use fewer than *MIN_PSEUDOCOUNTS*
     # pseudocounts per state
+    conc_param = max(R.shape[-1] * pseudocount_frac, MIN_PSEUDOCOUNTS)
     if likelihood_kwargs.get("verbose", False):
-        print("\nCalculated concentration parameter: ", (R.shape[-1] * pseudocount_frac))
-    pseudocounts = int(max(R.shape[-1] * pseudocount_frac, MIN_PSEUDOCOUNTS))
-    prior = np.ones(R.shape[:-1], dtype=np.float64) * pseudocounts   
+        print("\nPseudocounts per state: ", conc_param)
+    prior = np.ones(R.shape[:-1], dtype=np.float64) * conc_param
 
     # Previous Dirichlet prior estimate, to check for convergence
     m_prev = np.zeros(R.shape[:-1], dtype=np.float64)
@@ -143,7 +147,7 @@ def fss(tracks, likelihood="rbme_marginal", splitsize=12, max_jumps_per_track=No
 
         # Check for convergence
         change = m - m_prev 
-        if (np.abs(change) < convergence).all():
+        if (iter_idx > max_iter//10) and (np.abs(change) < convergence).all():
             break
         else:
             m_prev[:] = m[:]
@@ -156,4 +160,4 @@ def fss(tracks, likelihood="rbme_marginal", splitsize=12, max_jumps_per_track=No
     # Calculate the mean occupancies under the posterior model
     mean_occs = n / n.sum()
 
-    return R.T, n, mean_occs, n_jumps, track_indices, support
+    return R.T, n, mean_occs, L.T, n_jumps, track_indices, support

@@ -5,7 +5,8 @@ __init__.py
 """
 # Load trajectories from CSVs or directories with CSVs
 from .utils import (
-    load_tracks
+    load_tracks,
+    concat_tracks
 )
 
 # Evaluate likelihood functions on trajectories
@@ -18,7 +19,8 @@ from .plot import (
     fbme_likelihood_plot,
     likelihood_by_file,
     likelihood_by_frame,
-    spatial_likelihood
+    spatial_likelihood,
+    fss_plot
 )
 
 # Fixed state samplers

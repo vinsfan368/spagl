@@ -17,8 +17,8 @@ from .utils import (
 )
 
 # Default supports for the likelihood functions
-DIFF_COEFS_DEFAULT = np.logspace(-2.0, 2.0, 301)
-LOC_ERRORS_DEFAULT = np.arange(0.0, 0.062, 0.002)
+DIFF_COEFS_DEFAULT = np.logspace(-2.0, 2.0, 201)
+LOC_ERRORS_DEFAULT = np.arange(0.0, 0.102, 0.002)
 HURST_PARS_DEFAULT = np.arange(0.05, 1.0, 0.05)
 
 def gamma_likelihood(jumps, diff_coefs=None, max_jumps_per_track=None,
@@ -370,7 +370,7 @@ def rbme_likelihood(jumps, diff_coefs=None, loc_errors=None, max_jumps_per_track
 
                 # Show progress
                 if verbose:
-                    sys.stdout.write("Finished with condition (%d, %d) for track length %d...\r" % (i, j, l))
+                    sys.stdout.write("Finished evaluating likelihood (%d, %d) for track length %d...\r" % (i, j, l))
                     sys.stdout.flush()
 
     # Normalize over all states for each trajectory

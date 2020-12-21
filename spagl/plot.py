@@ -57,6 +57,12 @@ from .utils import track_length
 # localization in its respective trajectory
 from .utils import assign_index_in_track 
 
+# Default parameters
+from .HYPERPARAMS import (
+    DEFAULT_SPLITSIZE,
+    DEFAULT_PSEUDOCOUNT_FRAC
+)
+
 ########################
 ## PLOTTING UTILITIES ##
 ########################
@@ -207,7 +213,7 @@ def try_add_scalebar(axes, pixel_size, units="um", fontsize=8, location="lower l
 
 def gamma_likelihood_plot(tracks, diff_coefs=None, frame_interval=0.00748,
     pixel_size_um=0.16, loc_error=0.04, start_frame=None, dz=None, 
-    log_x_axis=True, splitsize=20, d_err=True, ylim=None, axes=None,
+    log_x_axis=True, splitsize=DEFAULT_SPLITSIZE, d_err=True, ylim=None, axes=None,
     truncate_immobile_frac=False, out_png=None, out_csv=None):
     """
     Evaluate the gamma approximation to the regular Brownian motion likelihood
@@ -334,7 +340,7 @@ def gamma_likelihood_plot(tracks, diff_coefs=None, frame_interval=0.00748,
 
 def rbme_likelihood_plot(tracks, diff_coefs=None, loc_errors=None,
     frame_interval=0.00748, start_frame=None, pixel_size_um=0.16, dz=None, 
-    log_x_axis=True, log_y_axis=False, splitsize=20, cmap="viridis",
+    log_x_axis=True, log_y_axis=False, splitsize=DEFAULT_SPLITSIZE, cmap="viridis",
     vmax=None, vmax_perc=99, out_png=None, out_csv=None, show_iso_var=False,
     verbose=True):
     """
@@ -523,7 +529,7 @@ def rbme_likelihood_plot(tracks, diff_coefs=None, loc_errors=None,
 
 def fbme_likelihood_plot(tracks, diff_coefs=None, hurst_pars=None, loc_error=0.04,
     frame_interval=0.00748, start_frame=None, pixel_size_um=0.16, dz=None, 
-    log_x_axis=True, splitsize=20, cmap="viridis", vmax=None, vmax_perc=99,
+    log_x_axis=True, splitsize=DEFAULT_SPLITSIZE, cmap="viridis", vmax=None, vmax_perc=99,
     out_png=None, out_csv=None):
     """
     Evaluate the likelihood function for regular Brownian motion with 
@@ -675,7 +681,7 @@ def fbme_likelihood_plot(tracks, diff_coefs=None, hurst_pars=None, loc_error=0.0
 
 def likelihood_by_frame(*track_csvs, likelihood="rbme_marginal", diff_coefs=None,
     frame_interval=0.00748, pixel_size_um=0.16, loc_error=0.04, start_frame=0,
-    interval=100, dz=None, splitsize=20, max_jumps_per_track=None, vmax=None,
+    interval=100, dz=None, splitsize=DEFAULT_SPLITSIZE, max_jumps_per_track=None, vmax=None,
     vmax_perc=99, log_y_axis=True, out_png=None, out_csv=None,
     normalize_by_frame_group=True, extent=(0, 7, 0, 1.5)):
     """
@@ -851,7 +857,7 @@ def likelihood_by_frame(*track_csvs, likelihood="rbme_marginal", diff_coefs=None
 
 def likelihood_by_file(track_csvs, likelihood="rbme_marginal", group_labels=None,
     diff_coefs=None, frame_interval=0.00748, pixel_size_um=0.16, loc_error=0.04,
-    start_frame=None, dz=None, splitsize=20, max_jumps_per_track=None, vmax=None,
+    start_frame=None, dz=None, splitsize=DEFAULT_SPLITSIZE, max_jumps_per_track=None, vmax=None,
     vmax_perc=99, log_x_axis=True, label_by_file=False, scale_colors_by_group=False,
     track_csv_ext="trajs.csv", out_png=None, out_csv=None, verbose=True,
     scale_by_total_track_count=False, subplot_extent=(0, 7, 0, 2)):
@@ -1345,7 +1351,7 @@ def likelihood_by_file(track_csvs, likelihood="rbme_marginal", group_labels=None
 
 def spatial_likelihood(track_csv, diff_coefs, likelihood="rbme_marginal", posterior=None, 
     frame_interval=0.00748, pixel_size_um=0.16, loc_error=0.04, start_frame=None,
-    dz=None, bin_size_um=0.05, filter_kernel_um=0.12, splitsize=20,
+    dz=None, bin_size_um=0.05, filter_kernel_um=0.12, splitsize=DEFAULT_SPLITSIZE,
     max_jumps_per_track=None, vmax=None, vmax_perc=99, out_png=None,
     fontsize=10, normalize_by_loc_density=False, pos_cols=["y", "x"],
     normalize_diff_coefs_separately=True, count_by_jumps=False):
@@ -1635,9 +1641,9 @@ def spatial_likelihood(track_csv, diff_coefs, likelihood="rbme_marginal", poster
 ###############################
 
 def fss_plot(tracks, start_frame=None, pixel_size_um=0.16, frame_interval=0.00748,
-    dz=None, max_iter=500, convergence=1.0e-8, splitsize=20, 
-    max_jumps_per_track=None, pseudocount_frac=0.001, verbose=True,
-    out_png=None, out_csv=None):
+    dz=None, max_iter=500, convergence=1.0e-8, splitsize=DEFAULT_SPLITSIZE, 
+    max_jumps_per_track=None, pseudocount_frac=DEFAULT_PSEUDOCOUNT_FRAC,
+    verbose=True, out_png=None, out_csv=None):
     """
     This function estimates the underlying state distribution for a set of 
     trajectories using a fixed state sampler. The default settings are intended
@@ -1733,8 +1739,8 @@ def fss_plot(tracks, start_frame=None, pixel_size_um=0.16, frame_interval=0.0074
     """
     if verbose: print("Number of trajectories: {}".format(tracks['trajectory'].nunique()))
 
-    # Run the finite state sampler
-    if verbose: print("Running the finite state sampler...")
+    # Run the fixed state sampler
+    if verbose: print("Running the fixed state sampler...")
     R, n, posterior_mean, likelihood, n_jumps, track_indices, support = fss(
         tracks, pixel_size_um=pixel_size_um, likelihood="rbme", dz=dz,
         splitsize=splitsize, verbose=verbose, pseudocount_frac=pseudocount_frac,
@@ -1779,8 +1785,15 @@ def fss_plot(tracks, start_frame=None, pixel_size_um=0.16, frame_interval=0.0074
         # y-ticks for localization error
         n_yticks = 7
         space = support[1].shape[0] // n_yticks
-        yticks = np.arange(support[1].shape[0])[::space]
-        yticklabels = ['%.3f' % i for i in support[1][::space]]
+        if space > support[1].shape[0]:
+            space = 1
+        try:
+            yticks = np.arange(support[1].shape[0])[::space]
+            yticklabels = ['%.3f' % i for i in support[1][::space]]
+        except:
+            space = 1
+            yticks = np.arange(support[1].shape[0])[::space]
+            yticklabels = ['%.3f' % i for i in support[1][::space]]           
         for j in range(2):
             ax[j].set_yticks(yticks)
             ax[j].set_yticklabels(yticklabels, fontsize=fontsize)
@@ -1789,7 +1802,7 @@ def fss_plot(tracks, start_frame=None, pixel_size_um=0.16, frame_interval=0.0074
         # Show the posterior mean marginalized on localization error
         ax[2].plot(support[0], posterior_mean_marg, color='k')
         ax[2].set_xscale("log")
-        ax[2].set_ylabel("Marginal\nposterior\nmean", fontsize=fontsize)
+        ax[2].set_ylabel("Marginal\nposterior mean", fontsize=fontsize)
         ax[2].set_xlim((0.01, 100.0))
         ax[2].set_ylim((0, posterior_mean_marg[support[0]>0.05].max()*2.0))
         ax[2].set_xlabel("Diffusion coefficient ($\mu$m$^{2}$ s$^{-1}$)", fontsize=fontsize)
@@ -1798,8 +1811,10 @@ def fss_plot(tracks, start_frame=None, pixel_size_um=0.16, frame_interval=0.0074
         ax[0].set_title("Aggregated likelihood across all trajectories", fontsize=fontsize)
         ax[1].set_title("Posterior RBME mean", fontsize=fontsize)
 
-        # Save
-        save_png(out_png, dpi=800)
+        # Save, ignoring complaints from a call to matplotlib.pyplot.tight_layout()
+        with warnings.catch_warnings(record=False) as w:
+            warnings.simplefilter("ignore")
+            save_png(out_png, dpi=800)
 
     # Save the output to a CSV
     if not out_csv is None:

@@ -17,9 +17,11 @@ from .utils import (
 )
 
 # Default supports for the likelihood functions
-DIFF_COEFS_DEFAULT = np.logspace(-2.0, 2.0, 201)
-LOC_ERRORS_DEFAULT = np.arange(0.0, 0.102, 0.002)
-HURST_PARS_DEFAULT = np.arange(0.05, 1.0, 0.05)
+from .HYPERPARAMS import (
+    DIFF_COEFS_DEFAULT,
+    LOC_ERRORS_DEFAULT,
+    HURST_PARS_DEFAULT
+)
 
 def gamma_likelihood(jumps, diff_coefs=None, max_jumps_per_track=None,
     n_dim=2, frame_interval=0.00748, loc_error=0.035, mode="point", **kwargs):

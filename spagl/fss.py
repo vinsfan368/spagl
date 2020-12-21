@@ -28,11 +28,21 @@ from .defoc import defoc_corr
 # should always work with large sample sizes - preferably 
 # greater than 10000 trajectories. This is a safety feature 
 # against aberrant state estimations.
-MIN_PSEUDOCOUNTS = 10.0
+from .HYPERPARAMS import MIN_PSEUDOCOUNTS
 
-def fss(tracks, likelihood="rbme_marginal", splitsize=20, max_jumps_per_track=None,
-    start_frame=None, pixel_size_um=0.16, frame_interval=0.00748, 
-    dz=None, max_iter=1000, pseudocount_frac=0.001, convergence=0,
+# The default number of pseudocounts to use per state, expressed
+# as a fraction of the total number of trajectories.
+from .HYPERPARAMS import DEFAULT_PSEUDOCOUNT_FRAC
+
+# Default splitting scheme. Trajectories that are too long are 
+# split into smaller trajectories with a maximum number of jumps
+# equal to *splitsize*.
+from .HYPERPARAMS import DEFAULT_SPLITSIZE
+
+def fss(tracks, likelihood="rbme_marginal", start_frame=None,
+    pixel_size_um=0.16, frame_interval=0.00748, dz=None, max_iter=500,
+    max_jumps_per_track=None, splitsize=DEFAULT_SPLITSIZE,
+    pseudocount_frac=DEFAULT_PSEUDOCOUNT_FRAC, convergence=0,
     **likelihood_kwargs):
     """
     Use a fixed state sampler (FSS) to estimate the underlying occupancies

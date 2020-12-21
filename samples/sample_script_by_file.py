@@ -58,7 +58,6 @@ def sample_script_by_file():
         frame_interval=0.00748,    # time between frames in sec
         dz=0.7,                    # microscope focal depth in microns
         pixel_size_um=0.16,        # pixel size in microns
-        splitsize=20,              # maximum trajectory length
         track_csv_ext="trajs.csv", # extension for the trajectory CSVs
         start_frame=1000,          # disregard trajectories before this frame
         out_png="sample_script_by_file_out.png",

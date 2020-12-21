@@ -6,7 +6,7 @@ HYPERPARAMS.py -- hyperparameters for the methods in spagl
 import numpy as np 
 
 # Default supports for likelihood functions
-DIFF_COEFS_DEFAULT = np.logspace(-2.0, 2.0, 151)
+DIFF_COEFS_DEFAULT = np.logspace(-2.0, 2.0, 201)
 # LOC_ERRORS_DEFAULT = np.arange(0.0, 0.102, 0.002)
 LOC_ERRORS_DEFAULT = np.arange(0.02, 0.0625, 0.0025)
 HURST_PARS_DEFAULT = np.arange(0.05, 1.0, 0.05)

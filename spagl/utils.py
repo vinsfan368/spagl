@@ -153,19 +153,25 @@ def load_tracks(*csv_paths, out_csv=None, start_frame=0,
         return load_tracks_dir(csv_paths[0], start_frame=start_frame,
             drop_singlets=drop_singlets, suffix=suffix)
 
+    if start_frame is None:
+        start_frame = 0
+
     def drop_before_start_frame(tracks, start_frame):
         """
         Drop all trajectories that start before a specific frame.
 
         """
-        if start_frame is None:
-            start_frame = 0
+        if tracks.empty:
+            return tracks 
+
         tracks = tracks.join(
             (tracks.groupby("trajectory")["frame"].first() >= start_frame).rename("_take"),
             on="trajectory"
         )
-        tracks = tracks[tracks["_take"]]  # culprit
+
+        tracks = tracks[tracks["_take"]]
         tracks = tracks.drop("_take", axis=1)
+
         return tracks
 
     def drop_singlets_dataframe(tracks):
@@ -174,19 +180,31 @@ def load_tracks(*csv_paths, out_csv=None, start_frame=0,
         pandas.DataFrame with trajectory information.
 
         """
-        if start_frame != 0:
-            tracks = drop_before_start_frame(tracks, start_frame)
+        if tracks.empty:
+            return tracks 
 
         tracks = track_length(tracks)
         tracks = tracks[np.logical_and(tracks["track_length"]>1,
             tracks["trajectory"]>=0)]
+
+        return tracks 
+
+    def loader(path):
+        tracks = pd.read_csv(path)
+
+        if drop_singlets:
+            tracks = drop_singlets_dataframe(tracks)
+
+        if start_frame > 0:
+            tracks = drop_before_start_frame(tracks, start_frame)
+
         return tracks 
 
     # Load the trajectories into memory
     tracks = []
     for path in csv_paths:
         if drop_singlets:
-            tracks.append(drop_singlets_dataframe(pd.read_csv(path)))
+            tracks.append(loader(path))
         else:
             tracks.append(pd.read_csv(path))
 

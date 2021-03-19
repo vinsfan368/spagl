@@ -255,7 +255,16 @@ def load_tracks_dir(dirname, suffix=".csv", start_frame=0,
     tracks = concat_tracks(*tracks)
 
     # Exclude points before the start frame
-    tracks = tracks[tracks["frame"] >= start_frame]
+    if isinstance(start_frame, int) and \
+        (start_frame > tracks["frame"].min()) and \
+        (not tracks.empty):
+
+        tracks = tracks.join(
+            (tracks.groupby("trajectory")["frame"].first() >= start_frame).rename("_take"),
+            on="trajectory"
+        )
+        tracks = tracks[tracks["_take"]] 
+        tracks = tracks.drop("_take", axis=1)
 
     # Exclude trajectories that are too short
     tracks = track_length(tracks)

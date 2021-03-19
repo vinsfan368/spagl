@@ -161,7 +161,8 @@ def load_tracks(*csv_paths, out_csv=None, start_frame=0,
         Drop all trajectories that start before a specific frame.
 
         """
-        if tracks.empty:
+        print("start_frame = ", start_frame)
+        if tracks.empty or (start_frame is None) or (start_frame <= tracks["frame"].min()):
             return tracks 
 
         tracks = tracks.join(
@@ -195,18 +196,14 @@ def load_tracks(*csv_paths, out_csv=None, start_frame=0,
         if drop_singlets:
             tracks = drop_singlets_dataframe(tracks)
 
-        if start_frame > 0:
-            tracks = drop_before_start_frame(tracks, start_frame)
+        tracks = drop_before_start_frame(tracks, start_frame)
 
         return tracks 
 
     # Load the trajectories into memory
     tracks = []
     for path in csv_paths:
-        if drop_singlets:
-            tracks.append(loader(path))
-        else:
-            tracks.append(pd.read_csv(path))
+        tracks.append(loader(path))
 
     # Concatenate 
     tracks = concat_tracks(*tracks)

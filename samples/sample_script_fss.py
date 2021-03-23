@@ -51,9 +51,12 @@ def sample_script_fss():
         frame_interval=0.00748,   # frame interval in seconds
         pixel_size_um=0.16,       # size of pixels in microns
         dz=0.7,                   # focal depth in microns
+        truncate_y_axis=True,     # clip the plot y-axis to make 
+                                  # it easier to see free fraction
         verbose=True,
         out_png="sample_script_fss_out.png",
         out_csv="sample_script_fss_out.csv",
+        max_iter=40,
     )
 
 if __name__ == "__main__":

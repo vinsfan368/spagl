@@ -1643,7 +1643,7 @@ def spatial_likelihood(track_csv, diff_coefs, likelihood="rbme_marginal", poster
 def fss_plot(tracks, start_frame=None, pixel_size_um=0.16, frame_interval=0.00748,
     dz=None, max_iter=500, convergence=1.0e-8, splitsize=DEFAULT_SPLITSIZE, 
     max_jumps_per_track=None, pseudocount_frac=DEFAULT_PSEUDOCOUNT_FRAC,
-    verbose=True, out_png=None, out_csv=None):
+    truncate_y_axis=True, verbose=True, out_png=None, out_csv=None):
     """
     This function estimates the underlying state distribution for a set of 
     trajectories using a fixed state sampler. The default settings are intended
@@ -1699,6 +1699,9 @@ def fss_plot(tracks, start_frame=None, pixel_size_um=0.16, frame_interval=0.0074
         pseudocount_frac        :   float, the pseudocounts expressed as a 
                                     fraction of the total number of jumps in 
                                     the set of trajectories;
+
+        truncate_y_axis         :   float, limit the y-axis so that the 
+                                    free population is easier to see
 
         verbose                 :   bool, show progress;
 
@@ -1804,7 +1807,10 @@ def fss_plot(tracks, start_frame=None, pixel_size_um=0.16, frame_interval=0.0074
         ax[2].set_xscale("log")
         ax[2].set_ylabel("Marginal\nposterior mean", fontsize=fontsize)
         ax[2].set_xlim((0.01, 100.0))
-        ax[2].set_ylim((0, posterior_mean_marg[support[0]>0.05].max()*2.0))
+        if truncate_y_axis:
+            ax[2].set_ylim((0, posterior_mean_marg[support[0]>0.05].max()*2.0))
+        else:
+            ax[2].set_ylim((0, max(posterior_mean_marg)))
         ax[2].set_xlabel("Diffusion coefficient ($\mu$m$^{2}$ s$^{-1}$)", fontsize=fontsize)
 
         # Subplot titles

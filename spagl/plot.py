@@ -327,7 +327,7 @@ def gamma_likelihood_plot(tracks, diff_coefs=None, frame_interval=0.00748,
 
         # Format output dataframe
         out_cols = ["diff_coef", "aggregate_likelihood"]
-        df = pd.DataFrame(index=np.arange(len(agg_lik)), columns=out_cols)
+        df = pd.DataFrame(index=np.arange(len(agg_lik)), columns=out_cols, dtype=object)
         df["diff_coef"] = diff_coefs 
         df["aggregate_likelihood"] = agg_lik 
         df.to_csv(out_csv, index=False)
@@ -512,7 +512,7 @@ def rbme_likelihood_plot(tracks, diff_coefs=None, loc_errors=None,
         out_cols = ["diff_coef", "loc_error", "aggregate_likelihood"]
         M = len(diff_coefs) * len(loc_errors)
         indices = np.arange(M)
-        df = pd.DataFrame(index=indices, columns=out_cols)
+        df = pd.DataFrame(index=indices, columns=out_cols, dtype=object)
         for i, D in enumerate(diff_coefs):
             match = np.logical_and(indices >= (i*nLE), indices < ((i+1)*nLE))
             df.loc[match, "diff_coef"] = D 
@@ -661,7 +661,7 @@ def fbme_likelihood_plot(tracks, diff_coefs=None, hurst_pars=None, loc_error=0.0
         out_cols = ["diff_coef", "hurst_par", "aggregate_likelihood"]
         M = len(diff_coefs) * len(hurst_pars)
         indices = np.arange(M)
-        df = pd.DataFrame(index=indices, columns=out_cols)
+        df = pd.DataFrame(index=indices, columns=out_cols, dtype=object)
         for i, D in enumerate(diff_coefs):
             match = np.logical_and(indices >= (i*nH), indices < ((i+1)*nH))
             df.loc[match, "diff_coef"] = D 
@@ -769,7 +769,7 @@ def likelihood_by_frame(*track_csvs, likelihood="rbme_marginal", diff_coefs=None
 
     # Map each trajectory back to the first frame in which it was found
     m = len(orig_track_indices)
-    C = pd.DataFrame(index=np.arange(m), columns=["orig_track_index", "initial_frame"])
+    C = pd.DataFrame(index=np.arange(m), columns=["orig_track_index", "initial_frame"], dtype=object)
     C["orig_track_index"] = orig_track_indices
     initial_frames = tracks.groupby("trajectory", group_keys=orig_track_indices)["frame"].first()
     C["initial_frame"] = C["orig_track_index"].map(initial_frames)
@@ -1143,7 +1143,7 @@ def likelihood_by_file(track_csvs, likelihood="rbme_marginal", group_labels=None
             n_files, n_bins = L.shape
             M = n_files * n_bins 
             out_df_cols = ["origin_file", "diff_coef", "likelihood"]
-            out_df = pd.DataFrame(index=np.arange(M), columns=out_df_cols)
+            out_df = pd.DataFrame(index=np.arange(M), columns=out_df_cols, dtype=object)
 
             for i in range(n_files):
 
@@ -1305,7 +1305,7 @@ def likelihood_by_file(track_csvs, likelihood="rbme_marginal", group_labels=None
             # Output dataframe
             M = sum([L.shape[0] * L.shape[1] for L in L_matrices])
             out_df_cols = ["group_idx", "group_label", "diff_coef", "origin_file", "likelihood"]
-            out_df = pd.DataFrame(index=np.arange(M), columns=out_df_cols)
+            out_df = pd.DataFrame(index=np.arange(M), columns=out_df_cols, dtype=object)
 
             # Current DataFrame index 
             c = 0
@@ -1833,8 +1833,8 @@ def fss_plot(tracks, start_frame=None, pixel_size_um=0.16, frame_interval=0.0074
 
         # Save the posterior mean as a function of both diffusion coefficient
         # and localization error
-        out_df = pd.DataFrame(index=np.arange(M), columns=["diff_coef", "loc_error", "agg_lik", "posterior_mean"])
-        out_df["diff_coef"] = np.tile(support[0], support[1].shape[0])
+        out_df = pd.DataFrame(index=np.arange(M), columns=["diff_coef", "loc_error", "agg_lik", "posterior_mean"], dtype=object)
+        out_df["diff_coef"] = support[0][(np.arange(M) // support[1].shape[0]).astype(np.int64)]
         out_df["loc_error"] = np.tile(support[1], support[0].shape[0])
         out_df["agg_lik"] = agg_lik.ravel()
         out_df["posterior_mean"] = posterior_mean.ravel()
@@ -1844,7 +1844,7 @@ def fss_plot(tracks, start_frame=None, pixel_size_um=0.16, frame_interval=0.0074
 
         # Save the posterior mean marginalized on the localization error
         n_dc = support[0].shape[0]
-        out_df = pd.DataFrame(index=np.arange(n_dc), columns=["diff_coef", "posterior_mean"])
+        out_df = pd.DataFrame(index=np.arange(n_dc), columns=["diff_coef", "posterior_mean"], dtype=object)
         out_df["diff_coef"] = support[0]
         out_df["posterior_mean"] = posterior_mean_marg 
         out_csv_rbm = "{}_rbme_marginal_posterior.csv".format(out_prefix)

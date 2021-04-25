@@ -110,7 +110,7 @@ def eval_likelihood(tracks, likelihood="rbme_marginal", start_frame=None,
         jumps[:,1] = split_jumps(jumps, splitsize=splitsize)
 
     # Make a map between the two sets of trajectory indices
-    track_map = pd.DataFrame(index=np.arange(len(orig_track_indices)), columns=["orig_track_index", "new_track_index"])
+    track_map = pd.DataFrame(index=np.arange(len(orig_track_indices)), columns=["orig_track_index", "new_track_index"], dtype=object)
     track_map["orig_track_index"] = orig_track_indices
     track_map["new_track_index"] = jumps[:,1]
     orig_track_indices = np.asarray(track_map.groupby("new_track_index")["orig_track_index"].first())

@@ -145,7 +145,7 @@ def load_tracks(*csv_paths, out_csv=None, start_frame=0,
     n = len(csv_paths)
     if n == 0:
         warnings.warn("no paths passed")
-        return pd.DataFrame([], columns=["trajectory", "frame", "y", "x"])
+        return pd.DataFrame([], columns=["trajectory", "frame", "y", "x"], dtype=object)
 
     # If passed a directory instead of a set of file paths, just load all 
     # the CSVs from that directory
@@ -401,7 +401,7 @@ def sum_squared_jumps(jumps, max_jumps_per_track=None, pos_cols=["y", "x"]):
 
     # If there are no jumps in this set of trajectories, bail
     if jumps.shape[0] == 0:
-        return pd.DataFrame(index=[], columns=out_cols)
+        return pd.DataFrame(index=[], columns=out_cols, dtype=object)
 
     # Format as a dataframe, indexed by jump
     cols = ["track_length", "trajectory", "frame", "sq_jump"] + list(pos_cols)
@@ -414,7 +414,7 @@ def sum_squared_jumps(jumps, max_jumps_per_track=None, pos_cols=["y", "x"]):
         tracks = jumps[jumps["index_in_track"] <= max_jumps_per_track]
 
     # Output dataframe, indexed by trajectory
-    sum_jumps = pd.DataFrame(index=np.arange(n_tracks), columns=out_cols)
+    sum_jumps = pd.DataFrame(index=np.arange(n_tracks), columns=out_cols, dtype=object)
 
     # Calculate the sum of squared jumps for each trajectory
     sum_jumps["sum_sq_jump"] = np.asarray(jumps.groupby("trajectory")["sq_jump"].sum())

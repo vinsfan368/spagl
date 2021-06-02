@@ -247,7 +247,7 @@ def load_tracks_dir(dirname, suffix=".csv", start_frame=0,
         target_csvs = [dirname]
 
     # Concatenate trajectories
-    tracks = [pd.read_csv(j) for j in target_csvs]
+    tracks = [pd.read_csv(j).assign(source_file=os.path.abspath(j)) for j in target_csvs]
     tracks = concat_tracks(*tracks)
 
     # Exclude points before the start frame

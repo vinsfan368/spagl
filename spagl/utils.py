@@ -197,6 +197,7 @@ def load_tracks(*csv_paths, out_csv=None, start_frame=0,
             tracks = drop_singlets_dataframe(tracks)
 
         tracks = drop_before_start_frame(tracks, start_frame)
+        tracks["source_file"] = os.path.abspath(path)
 
         return tracks 
 
@@ -207,11 +208,6 @@ def load_tracks(*csv_paths, out_csv=None, start_frame=0,
 
     # Concatenate 
     tracks = concat_tracks(*tracks)
-
-    # Map the original path back to each file
-    for i, path in enumerate(csv_paths):
-        tracks.loc[tracks["dataframe_index"]==i, "source_file"] = \
-            os.path.abspath(path)
 
     # Optionally save concatenated trajectories to a new CSV
     if not out_csv is None:
@@ -251,7 +247,7 @@ def load_tracks_dir(dirname, suffix=".csv", start_frame=0,
         target_csvs = [dirname]
 
     # Concatenate trajectories
-    tracks = [pd.read_csv(j) for j in target_csvs]
+    tracks = [pd.read_csv(j).assign(source_file=os.path.abspath(j)) for j in target_csvs]
     tracks = concat_tracks(*tracks)
 
     # Exclude points before the start frame

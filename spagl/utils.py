@@ -80,8 +80,9 @@ def concat_tracks(*tracks):
     tracks = [t.assign(dataframe_idx=i) for i, t in enumerate(tracks) if not t.empty]
     inc = 0
     for i, t in enumerate(tracks):
-        tracks[i].loc[tracks[i]['trajectory'] >= 0, 'trajectory'] += inc
-        inc = tracks[i]['trajectory'].max()+1
+        if (t['trajectory'] >= 0).any():
+            tracks[i].loc[tracks[i]['trajectory'] >= 0, 'trajectory'] += inc
+            inc = tracks[i]['trajectory'].max()+1
     return pd.concat(tracks, axis=0, ignore_index=True, sort=False) \
         if len(tracks)>0 else pd.DataFrame(dtype=object)
 

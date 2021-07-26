@@ -748,7 +748,7 @@ def likelihood_by_frame(*track_csvs, likelihood="rbme_marginal", diff_coefs=None
 
     # Load all of the tracks in this directory
     tracks = load_tracks(*track_csvs, start_frame=start_frame, drop_singlets=True)
-    n_files = tracks["dataframe_index"].nunique()
+    n_files = tracks["dataframe_idx"].nunique()
 
     # Coerce into ndarray
     diff_coefs = np.asarray(diff_coefs)

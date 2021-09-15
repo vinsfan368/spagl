@@ -1822,6 +1822,7 @@ def fss_plot(tracks, start_frame=None, pixel_size_um=0.16, frame_interval=0.0074
         
         # Save
         plt.savefig(out_png, dpi=800)
+        plt.close()
 
     # Save the output to a CSV
     if not out_csv is None:

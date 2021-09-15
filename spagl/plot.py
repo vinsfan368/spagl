@@ -1819,11 +1819,9 @@ def fss_plot(tracks, start_frame=None, pixel_size_um=0.16, frame_interval=0.0074
         # Subplot titles
         ax[0].set_title("Aggregated likelihood across all trajectories", fontsize=fontsize)
         ax[1].set_title("Posterior RBME mean", fontsize=fontsize)
-
-        # Save, ignoring complaints from a call to matplotlib.pyplot.tight_layout()
-        with warnings.catch_warnings(record=False) as w:
-            warnings.simplefilter("ignore")
-            save_png(out_png, dpi=800)
+        
+        # Save
+        plt.savefig(out_png, dpi=800)
 
     # Save the output to a CSV
     if not out_csv is None:

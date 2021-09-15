@@ -1643,7 +1643,7 @@ def spatial_likelihood(track_csv, diff_coefs, likelihood="rbme_marginal", poster
 def fss_plot(tracks, start_frame=None, pixel_size_um=0.16, frame_interval=0.00748,
     dz=None, max_iter=500, convergence=1.0e-8, splitsize=DEFAULT_SPLITSIZE, 
     max_jumps_per_track=None, pseudocount_frac=DEFAULT_PSEUDOCOUNT_FRAC,
-    truncate_y_axis=True, verbose=True, out_png=None, out_csv=None):
+    verbose=True, out_png=None, out_csv=None, ylim=None):
     """
     This function estimates the underlying state distribution for a set of 
     trajectories using a fixed state sampler. The default settings are intended
@@ -1700,15 +1700,14 @@ def fss_plot(tracks, start_frame=None, pixel_size_um=0.16, frame_interval=0.0074
                                     fraction of the total number of jumps in 
                                     the set of trajectories;
 
-        truncate_y_axis         :   float, limit the y-axis so that the 
-                                    free population is easier to see
-
         verbose                 :   bool, show progress;
 
         out_png                 :   str, output PNG for saving plots;
 
         out_csv                 :   str, output CSV for saving the state 
                                     likelihoods and posterior occupations
+
+        ylim                    :   max y value. Vinson added this
 
     returns
     -------
@@ -1807,10 +1806,14 @@ def fss_plot(tracks, start_frame=None, pixel_size_um=0.16, frame_interval=0.0074
         ax[2].set_xscale("log")
         ax[2].set_ylabel("Marginal\nposterior mean", fontsize=fontsize)
         ax[2].set_xlim((0.01, 100.0))
-        if truncate_y_axis:
-            ax[2].set_ylim((0, posterior_mean_marg[support[0]>0.05].max()*2.0))
+        
+        # vinson modification to rescale y-axis of the marginal 
+        # posterior mean plot to ylim variable
+        if ylim is not None:
+            ax[2].set_ylim((0, ylim))
         else:
-            ax[2].set_ylim((0, max(posterior_mean_marg)))
+            ax[2].set_ylim((0, posterior_mean_marg[support[0]>0.05].max()*2.0))
+
         ax[2].set_xlabel("Diffusion coefficient ($\mu$m$^{2}$ s$^{-1}$)", fontsize=fontsize)
 
         # Subplot titles
@@ -1853,4 +1856,3 @@ def fss_plot(tracks, start_frame=None, pixel_size_um=0.16, frame_interval=0.0074
 
     # Return the output
     return R, n, posterior_mean, likelihood, n_jumps, track_indices, support 
-
